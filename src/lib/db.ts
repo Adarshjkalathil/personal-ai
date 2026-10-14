@@ -56,6 +56,8 @@ export interface Conversation {
   speakerNames?: Record<string, string>;
   analysis?: Analysis;
   error?: string;
+  /** Set when the error was a provider's rate limit, so the UI can offer other providers. */
+  errorKind?: 'rate-limit' | 'daily-limit';
 }
 
 export interface Task {

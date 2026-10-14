@@ -6,7 +6,8 @@
 import { googleCalendarUrl, mailtoUrl, whatsappUrl } from './actions';
 import { list, newId, patch, put, remove, transcriptText, type Conversation, type Task } from './db';
 import { ApiError } from './http';
-import { chat, type ChatMessage, type ToolDefinition } from './llm';
+import { chat, withProvider, type ChatMessage, type ToolDefinition } from './llm';
+import type { LlmProviderId } from './providers';
 import { findByRef, searchConversations, shortRef } from './search';
 import { getSettings, llmProblem, type Settings } from './settings';
 import { formatDateTime, nowForPrompt, parseLocalDate } from './time';
@@ -191,8 +192,14 @@ function systemPrompt(settings: Settings, voice: boolean): string {
 
 const MAX_STEPS = 6;
 
-export async function runAgent(question: string, history: ChatTurn[] = [], options: { voice?: boolean } = {}): Promise<AgentReply> {
-  const settings = getSettings();
+export interface AgentOptions {
+  voice?: boolean;
+  /** Use this provider instead of the default, just for this request. */
+  provider?: LlmProviderId;
+}
+
+export async function runAgent(question: string, history: ChatTurn[] = [], options: AgentOptions = {}): Promise<AgentReply> {
+  const settings = withProvider(getSettings(), options.provider);
   const problem = llmProblem(settings);
   if (problem) throw new Error(problem);
 
@@ -205,7 +212,7 @@ export async function runAgent(question: string, history: ChatTurn[] = [], optio
 
   try {
     for (let step = 0; step < MAX_STEPS; step++) {
-      const result = await chat(settings, messages, { tools: TOOLS, temperature: 0.3 });
+      const result = await chat(settings, messages, { tools: TOOLS, temperature: 0.3, failFast: true });
       if (!result.toolCalls.length) {
         reply.text = result.content;
         return reply;
@@ -223,7 +230,7 @@ export async function runAgent(question: string, history: ChatTurn[] = [], optio
       }
     }
     // Out of steps: ask for a final answer without tools.
-    reply.text = (await chat(settings, messages)).content;
+    reply.text = (await chat(settings, messages, { failFast: true })).content;
     return reply;
   } catch (error) {
     // Models without tool support usually answer 400. Fall back to retrieval.
@@ -255,6 +262,6 @@ async function answerFromContext(settings: Settings, question: string, history: 
     { role: 'system', content: `${systemPrompt(settings, voice)}\nYou cannot take actions in this mode; only answer from the context below.\n\n${context}` },
     ...history.slice(-10),
     { role: 'user', content: question },
-  ]);
+  ], { failFast: true });
   return content;
 }

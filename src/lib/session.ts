@@ -9,8 +9,7 @@ import { liveHints, type LiveHint } from './assist';
 import { chunkFile, MicCapture, type SpeechChunk } from './audio';
 import { get, newId, patch, put, remove, type Conversation, type Segment } from './db';
 import { ApiError, rateLimitListeners } from './http';
-import { fallbackListeners } from './llm';
-import { browserSpeechLanguage, STT_PROVIDERS, type SttProviderId } from './providers';
+import { browserSpeechLanguage, STT_PROVIDERS, type LlmProviderId, type SttProviderId } from './providers';
 import { getSettings, llmProblem, sttProblem } from './settings';
 import { transcribe, type TranscribedLine } from './stt';
 
@@ -18,6 +17,8 @@ export interface CommandResult {
   command: string;
   reply?: AgentReply;
   error?: string;
+  /** The AI provider was rate-limited; the user can pick another one. */
+  limit?: 'rate-limit' | 'daily-limit';
   at: number;
 }
 
@@ -86,11 +87,6 @@ class Session {
       const notice = `${provider} free-tier limit: waiting ${Math.ceil(waitMs / 1000)} s, then it continues automatically. Nothing is lost.`;
       this.set({ notice });
       setTimeout(() => this.state.notice === notice && this.set({ notice: undefined }), waitMs);
-    });
-    fallbackListeners.add((from, to) => {
-      const notice = `${from} was busy, so ${to} answered instead.`;
-      this.set({ notice });
-      setTimeout(() => this.state.notice === notice && this.set({ notice: undefined }), 15_000);
     });
   }
 
@@ -334,15 +330,17 @@ class Session {
     return command || null;
   }
 
-  private async runCommand(command: string) {
+  /** Runs a voice command; also used to retry it with a provider the user picked. */
+  async runCommand(command: string, provider?: LlmProviderId) {
     const at = Date.now();
     this.set({ command: { command, at } });
     try {
-      const reply = await runAgent(command, [], { voice: true });
+      const reply = await runAgent(command, [], { voice: true, provider });
       this.set({ command: { command, reply, at } });
       if (getSettings().speakReplies && reply.text) speak(reply.text);
     } catch (error) {
-      this.set({ command: { command, error: (error as Error).message, at } });
+      const limit = error instanceof ApiError && error.rateLimited ? (error.daily ? 'daily-limit' : 'rate-limit') : undefined;
+      this.set({ command: { command, error: (error as Error).message, limit, at } });
     }
   }
 

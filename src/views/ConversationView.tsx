@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Empty, Notice, Section, copyText, navigate, useAction } from '../components';
+import { BusyChoice, Empty, Notice, Section, copyText, limitKind, navigate, useAction } from '../components';
 import { download, eventsToIcs, googleCalendarUrl, mailtoUrl, whatsappUrl } from '../lib/actions';
 import { analyzeConversation } from '../lib/analyze';
 import { patch, remove, speakerName, transcriptText, useList } from '../lib/db';
@@ -13,7 +13,7 @@ export function ConversationView({ id }: { id: string }) {
   const conversations = useList('conversations');
   const tasks = useList('tasks');
   const memories = useList('memories');
-  const { busy, error, run } = useAction();
+  const { busy, error, cause, run } = useAction();
   const [renaming, setRenaming] = useState(false);
 
   if (!conversations) return null;
@@ -47,7 +47,7 @@ export function ConversationView({ id }: { id: string }) {
       <div className="actions">
         <button
           disabled={busy || conversation.status === 'analyzing' || conversation.status === 'recording' || !!llmIssue}
-          onClick={() => run(() => analyzeConversation(conversation.id))}
+          onClick={() => run(() => analyzeConversation(conversation.id, { interactive: true }))}
         >
           {conversation.status === 'analyzing' || busy ? 'Summarizing…' : a ? 'Summarize again' : 'Summarize'}
         </button>
@@ -70,6 +70,12 @@ export function ConversationView({ id }: { id: string }) {
 
       {llmIssue && !a && <Notice>{llmIssue}</Notice>}
       {(error || conversation.error) && <Notice kind="error">{error ?? conversation.error}</Notice>}
+      {!busy && conversation.status !== 'analyzing' && (
+        <BusyChoice
+          kind={error ? limitKind(cause) : conversation.errorKind}
+          onRetry={(provider) => run(() => analyzeConversation(conversation.id, { provider, interactive: true }))}
+        />
+      )}
       {a?.discard && <Notice>This looked like a trivial snippet, so it’s hidden from the main list.</Notice>}
 
       {a && (

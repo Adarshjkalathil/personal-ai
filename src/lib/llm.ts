@@ -1,4 +1,4 @@
-import { ApiError, request } from './http';
+import { request } from './http';
 import { LLM_PROVIDERS, type KeyId, type LlmProviderId } from './providers';
 import { llmKey, type Settings } from './settings';
 
@@ -25,6 +25,8 @@ export interface ChatOptions {
   tools?: ToolDefinition[];
   temperature?: number;
   signal?: AbortSignal;
+  /** Don't wait out rate limits when another provider could be chosen instead. */
+  failFast?: boolean;
 }
 
 export interface ChatResult {
@@ -34,21 +36,19 @@ export interface ChatResult {
   model: string;
 }
 
-/** Notified when a busy provider was skipped for another one. */
-export const fallbackListeners = new Set<(from: string, to: string) => void>();
+const ALTERNATIVE_ORDER: LlmProviderId[] = ['groq', 'gemini', 'mistral', 'openrouter'];
 
-const FALLBACK_ORDER: LlmProviderId[] = ['groq', 'gemini', 'mistral', 'openrouter'];
-
-/** Other providers the user has keys for, with their default models, in a sensible order. */
-export function fallbackSettings(settings: Settings): Settings[] {
-  return FALLBACK_ORDER.filter((id) => id !== settings.llm.provider && settings.keys[LLM_PROVIDERS[id].key]).map((id) => ({
-    ...settings,
-    llm: { provider: id, model: LLM_PROVIDERS[id].defaultModel, baseUrl: LLM_PROVIDERS[id].baseUrl },
-  }));
+/** Other AI providers the user has keys for, to offer when the chosen one is busy. */
+export function alternativeProviders(settings: Settings): LlmProviderId[] {
+  return ALTERNATIVE_ORDER.filter((id) => id !== settings.llm.provider && settings.keys[LLM_PROVIDERS[id].key]);
 }
 
-const canFallBack = (error: unknown) =>
-  error instanceof ApiError && (error.rateLimited || error.status === 401 || error.status === 403 || error.status === 404);
+/** The same settings, but using another provider with its default model (for a one-off request). */
+export function withProvider(settings: Settings, provider: LlmProviderId | undefined): Settings {
+  if (!provider || provider === settings.llm.provider) return settings;
+  const preset = LLM_PROVIDERS[provider];
+  return { ...settings, llm: { provider, model: preset.defaultModel, baseUrl: preset.baseUrl } };
+}
 
 export function llmBaseUrl(settings: Settings): string {
   const base = settings.llm.provider === 'custom' ? settings.llm.baseUrl : LLM_PROVIDERS[settings.llm.provider].baseUrl;
@@ -56,30 +56,13 @@ export function llmBaseUrl(settings: Settings): string {
 }
 
 /**
- * Sends a chat request. If the chosen provider is rate-limited and the user has keys
- * for others, it switches immediately instead of waiting; only if every provider is
- * busy does it wait for the chosen one.
+ * Sends a chat request. With failFast (someone is waiting on the answer) and other
+ * providers available, a rate limit fails at once so the user can choose what to do;
+ * otherwise it waits the limit out.
  */
 export async function chat(settings: Settings, messages: ChatMessage[], options: ChatOptions = {}): Promise<ChatResult> {
-  const fallbacks = fallbackSettings(settings);
-  if (!fallbacks.length) return chatOnce(settings, messages, options, true);
-  try {
-    return await chatOnce(settings, messages, options, false);
-  } catch (error) {
-    if (!(error instanceof ApiError && error.rateLimited)) throw error;
-    for (const alternative of fallbacks) {
-      try {
-        const result = await chatOnce(alternative, messages, options, false);
-        const from = LLM_PROVIDERS[settings.llm.provider].label;
-        fallbackListeners.forEach((listener) => listener(from, LLM_PROVIDERS[alternative.llm.provider].label));
-        return result;
-      } catch (fallbackError) {
-        if (!canFallBack(fallbackError)) throw fallbackError;
-      }
-    }
-    if (error.daily) throw error;
-    return chatOnce(settings, messages, options, true);
-  }
+  const wait = !(options.failFast && alternativeProviders(settings).length);
+  return chatOnce(settings, messages, options, wait);
 }
 
 async function chatOnce(settings: Settings, messages: ChatMessage[], options: ChatOptions, waitOnRateLimit: boolean): Promise<ChatResult> {
@@ -116,8 +99,8 @@ async function chatOnce(settings: Settings, messages: ChatMessage[], options: Ch
 }
 
 /** Asks for JSON and parses it, tolerating code fences and surrounding prose. */
-export async function chatJson<T>(settings: Settings, messages: ChatMessage[], signal?: AbortSignal): Promise<{ value: T; model: string }> {
-  const { content, model } = await chat(settings, messages, { json: true, signal });
+export async function chatJson<T>(settings: Settings, messages: ChatMessage[], options: ChatOptions = {}): Promise<{ value: T; model: string }> {
+  const { content, model } = await chat(settings, messages, { ...options, json: true });
   return { value: parseJson<T>(content), model };
 }
 

@@ -1,5 +1,6 @@
 import { list, transcriptText } from './db';
-import { chat, chatJson } from './llm';
+import { chat, chatJson, withProvider } from './llm';
+import type { LlmProviderId } from './providers';
 import { getSettings, llmProblem } from './settings';
 import { formatTime, localDay, nowForPrompt, parseLocalDate } from './time';
 
@@ -39,8 +40,8 @@ export function savedRecap(day: string): string | null {
 }
 
 /** A digest of one day: what happened, decisions, open loops and suggestions for tomorrow. */
-export async function dailyRecap(day: string): Promise<string> {
-  const settings = getSettings();
+export async function dailyRecap(day: string, provider?: LlmProviderId): Promise<string> {
+  const settings = withProvider(getSettings(), provider);
   const problem = llmProblem(settings);
   if (problem) throw new Error(problem);
 
@@ -84,7 +85,7 @@ ${dayTasks.map((t) => `- ${t.done ? '[done] ' : ''}${t.text}${t.due ? ` (due ${t
 Open tasks due within 3 days:
 ${dueSoon.map((t) => `- ${t.text} (due ${t.due})`).join('\n') || 'None'}`,
     },
-  ]);
+  ], { failFast: true });
   localStorage.setItem(RECAP_KEY(day), content);
   return content;
 }

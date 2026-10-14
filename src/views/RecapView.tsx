@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Markdown, Notice, useAction } from '../components';
+import { BusyChoice, Markdown, Notice, limitKind, useAction } from '../components';
 import { speak } from '../lib/actions';
 import { dailyRecap, savedRecap } from '../lib/assist';
 import { useList } from '../lib/db';
@@ -11,7 +11,7 @@ export function RecapView() {
   const conversations = useList('conversations');
   const [day, setDay] = useState(localDay());
   const [recap, setRecap] = useState<string | null>(() => savedRecap(localDay()));
-  const { busy, error, run } = useAction();
+  const { busy, error, cause, run } = useAction();
   const problem = llmProblem(settings);
   const count = conversations?.filter((c) => localDay(new Date(c.startedAt)) === day).length ?? 0;
 
@@ -41,6 +41,7 @@ export function RecapView() {
       </p>
       {problem && <Notice kind="warn">{problem}</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
+      {error && !busy && <BusyChoice kind={limitKind(cause)} onRetry={(provider) => run(async () => setRecap(await dailyRecap(day, provider)))} />}
       {recap && (
         <div className="card">
           <Markdown text={recap} />

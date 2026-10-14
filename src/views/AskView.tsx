@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Markdown, Notice, useAction } from '../components';
+import { BusyChoice, Markdown, Notice, limitKind, useAction } from '../components';
 import { speak } from '../lib/actions';
 import { runAgent, type AgentAction, type AgentReply, type ChatTurn } from '../lib/agent';
+import type { LlmProviderId } from '../lib/providers';
 import { llmProblem, useSettings } from '../lib/settings';
 
 const SUGGESTIONS = [
@@ -35,7 +36,8 @@ export function AskView() {
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const { busy, error, run } = useAction();
+  const { busy, error, cause, run } = useAction();
+  const [failed, setFailed] = useState<{ text: string; history: ChatTurn[] } | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const problem = llmProblem(settings);
 
@@ -49,9 +51,19 @@ export function AskView() {
     const history = messages.map(({ role, content }) => ({ role, content }));
     setMessages((m) => [...m, { role: 'user', content: text }]);
     setInput('');
+    send(text, history);
+  };
+
+  const send = (text: string, history: ChatTurn[], provider?: LlmProviderId) => {
+    setFailed(null);
     void run(async () => {
-      const reply = await runAgent(text, history);
-      setMessages((m) => [...m, { role: 'assistant', content: reply.text, reply }]);
+      try {
+        const reply = await runAgent(text, history, { provider });
+        setMessages((m) => [...m, { role: 'assistant', content: reply.text, reply }]);
+      } catch (e) {
+        setFailed({ text, history });
+        throw e;
+      }
     });
   };
 
@@ -102,6 +114,7 @@ export function AskView() {
         ))}
         {busy && <div className="message assistant muted">Thinking…</div>}
         {error && <Notice kind="error">{error}</Notice>}
+        {failed && !busy && <BusyChoice kind={limitKind(cause)} onRetry={(provider) => send(failed.text, failed.history, provider)} />}
         <div ref={bottom} />
       </div>
 

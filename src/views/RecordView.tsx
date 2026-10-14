@@ -1,5 +1,5 @@
 import { useRef, type CSSProperties } from 'react';
-import { Notice, navigate } from '../components';
+import { BusyChoice, Notice, navigate } from '../components';
 import { useList, speakerName } from '../lib/db';
 import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
 import { session, useSession } from '../lib/session';
@@ -112,6 +112,9 @@ export function RecordView() {
           </div>
           {!state.command.reply && !state.command.error && <p className="muted">Working on it…</p>}
           {state.command.error && <p className="error-text">{state.command.error}</p>}
+          {state.command.error && (
+            <BusyChoice kind={state.command.limit} onRetry={(provider) => session.runCommand(state.command!.command, provider)} />
+          )}
           {state.command.reply && (
             <>
               <p>{state.command.reply.text}</p>

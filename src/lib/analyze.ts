@@ -1,6 +1,7 @@
-import { chat, chatJson, type ChatMessage } from './llm';
+import { ApiError } from './http';
+import { chat, chatJson, withProvider, type ChatMessage } from './llm';
 import { get, list, newId, patch, put, remove, transcriptText, type Analysis, type Conversation, type Task } from './db';
-import { LLM_PROVIDERS } from './providers';
+import { LLM_PROVIDERS, type LlmProviderId } from './providers';
 import { getSettings, llmProblem, type Settings } from './settings';
 import { formatDateTime, formatDuration, nowForPrompt } from './time';
 
@@ -58,7 +59,7 @@ ${transcript}
 }
 
 /** Free tiers cap tokens per request, so long transcripts are condensed in parts first. */
-async function fitTranscript(transcript: string, settings: Settings): Promise<string> {
+async function fitTranscript(transcript: string, settings: Settings, failFast: boolean): Promise<string> {
   const limit = LLM_PROVIDERS[settings.llm.provider].maxInputChars;
   if (transcript.length <= limit) return transcript;
 
@@ -80,7 +81,7 @@ async function fitTranscript(transcript: string, settings: Settings): Promise<st
         role: 'user',
         content: `This is part ${i + 1} of ${parts.length} of a long conversation transcript. Condense it into detailed notes that keep every name, number, date, decision, request and commitment, and who said what. Keep timestamps for major moments.\n\n${part}`,
       },
-    ]);
+    ], { failFast });
     notes.push(content);
   }
   return notes.join('\n\n');
@@ -88,8 +89,16 @@ async function fitTranscript(transcript: string, settings: Settings): Promise<st
 
 const asStrings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && !!v.trim()) : []);
 
-export async function analyzeConversation(id: string): Promise<void> {
-  const settings = getSettings();
+export interface AnalyzeOptions {
+  /** Use this provider instead of the default, just for this run. */
+  provider?: LlmProviderId;
+  /** Someone is waiting: on a rate limit, fail at once so they can pick another provider. */
+  interactive?: boolean;
+}
+
+export async function analyzeConversation(id: string, options: AnalyzeOptions = {}): Promise<void> {
+  const settings = withProvider(getSettings(), options.provider);
+  const failFast = !!options.interactive;
   const problem = llmProblem(settings);
   if (problem) throw new Error(problem);
 
@@ -100,11 +109,12 @@ export async function analyzeConversation(id: string): Promise<void> {
   await patch('conversations', id, (c) => {
     c.status = 'analyzing';
     c.error = undefined;
+    c.errorKind = undefined;
   });
 
   try {
-    const transcript = await fitTranscript(transcriptText(conversation, true), settings);
-    const { value: raw, model } = await chatJson<RawAnalysis>(settings, analysisPrompt(conversation, transcript, settings));
+    const transcript = await fitTranscript(transcriptText(conversation, true), settings, failFast);
+    const { value: raw, model } = await chatJson<RawAnalysis>(settings, analysisPrompt(conversation, transcript, settings), { failFast });
 
     const analysis: Analysis = {
       discard: raw.discard === true,
@@ -137,6 +147,7 @@ export async function analyzeConversation(id: string): Promise<void> {
     await patch('conversations', id, (c) => {
       c.status = 'error';
       c.error = error instanceof Error ? error.message : String(error);
+      c.errorKind = error instanceof ApiError && error.rateLimited ? (error.daily ? 'daily-limit' : 'rate-limit') : undefined;
     });
     throw error;
   }
