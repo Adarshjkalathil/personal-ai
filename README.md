@@ -2,89 +2,143 @@
 
 # Personal AI
 
-An AI memory assistant that runs entirely in your browser. It records your conversations, transcribes
-them, and turns them into summaries, tasks, calendar events and memories. You can ask it about anything you've
-discussed and tell it to act for you.
+**Your conversations, remembered.** Press record, talk normally, and Personal AI writes down what was said. It
+summarizes each conversation, makes a to-do list from the promises people made, and lets you ask questions later,
+like *“What did Ravi say about the budget?”*
 
-It's a free alternative to AI wearables like NeoSapien Neo 1, Limitless or Bee. There's no server, no account and no
-subscription. Bring your own free API keys.
+- ✅ **Free.** No subscription, nothing to buy.
+- ✅ **Nothing to install.** It runs in your web browser, on a phone or a computer.
+- ✅ **Private.** Your recordings stay on your own device.
+- ✅ **Speaks your language.** English, Hindi, Tamil, Telugu, Bengali, Marathi and more, including mixed Hindi-English.
 
-Created in [T3 Code](https://t3.codes).
+## 👉 [Open Personal AI](https://adarshjkalathil.github.io/personal-ai/)
 
-## Features
+---
 
-| | |
+## Try it in 3 minutes
+
+You need one free “API key”. Think of it as a password that lets the app use a free AI service. Getting one takes
+about a minute, and you don't need a credit card.
+
+### Step 1: Get a free key from Groq
+
+1. Go to **[console.groq.com/keys](https://console.groq.com/keys)**.
+2. Sign up with your Google account, GitHub account or email.
+3. Click **Create API Key**, type any name (for example `personal-ai`) and confirm.
+4. **Copy the key.** It's a long code starting with `gsk_`. Groq shows it only once, so paste it somewhere safe.
+
+### Step 2: Paste the key into the app
+
+1. Open **[Personal AI](https://adarshjkalathil.github.io/personal-ai/)**.
+2. Tap **⚙️ Settings** (at the bottom on a phone, at the top on a computer).
+3. Paste your key into the **Groq** box. It saves automatically.
+
+### Step 3: Record
+
+1. Tap **🎙️ Record**, then the big round button.
+2. When the browser asks for **microphone permission**, tap **Allow**.
+3. Talk! Your words appear on screen after a few seconds.
+4. Tap the button again to stop. After a moment, open **💬 Conversations** to see the summary and to-dos.
+
+**That's it.** 🎉
+
+> **No key at all?** In **Settings → Transcription → Provider**, choose **Browser speech recognition (no key)**.
+> Recording then works in Chrome or Edge with no sign-up. You still need a key for summaries and the Ask feature.
+
+---
+
+## What you can do
+
+| Tab | What it does |
 |---|---|
-| 🎙️ **Record** | Records continuously from the microphone. Voice detection uploads only speech, never silence. A new conversation starts automatically after a pause. |
-| 📁 **Transcribe files** | Drop in any audio or video file the browser can decode. |
-| 🗣️ **Speaker labels** | Speaker 1, Speaker 2… (with Gemini). Rename them to real names. |
-| 🌏 **Indian languages** | Hindi, Tamil, Telugu, Bengali, Marathi and 10 more, including mixed Hindi-English. |
-| 📝 **Summaries** | Title, overview, key points, decisions, people, tone/mood. Trivial snippets are hidden automatically. |
-| ✅ **Tasks & reminders** | Commitments become tasks with due dates. Get browser notifications, or export to any calendar (.ics). |
-| 📅 **Events** | One tap to Google Calendar, or download an .ics file. |
-| ✉️ **Follow-ups** | Ready-to-send email and WhatsApp drafts. |
-| 🧠 **Memories** | Lasting facts about you, collected from your conversations. |
-| ✨ **Ask (agent)** | Chat over everything you've recorded. The assistant searches, cites conversations, adds or completes tasks, remembers or forgets facts, schedules events and drafts messages. |
-| 🗣️ **Voice commands** | While recording, say *“hey assistant, remind me to call Ravi at 6”*. It acts and replies out loud. |
-| 💡 **Live hints** | Optional: suggested follow-up questions and commitments it notices while you talk. |
-| 📰 **Daily recap** | A digest of your day: highlights, decisions, open loops, suggestions for tomorrow. |
-| 📱 **Installable** | Works as a phone or desktop app (PWA). Backup and restore as JSON. |
+| 🎙️ **Record** | Records and writes down what's said. A pause of a couple of minutes starts a new conversation. You can also upload an audio file (a voice note or meeting recording). |
+| 💬 **Conversations** | Each conversation gets a title, a short summary, key points, decisions, who was there, and the mood. Tap **Name speakers** to change “Speaker 1” into a real name. |
+| ✨ **Ask** | Ask about anything you've recorded: *“What did I promise to do this week?”* It can also do things: *“Remind me tomorrow at 9 to call the bank.”* |
+| ✅ **Tasks** | To-dos found in your conversations, plus your own. Turn on reminders, or add them to your calendar. |
+| 🧠 **Memories** | Facts it has learned about you, such as people's names, preferences and plans. Delete anything you don't want kept. |
+| 📰 **Recap** | A summary of any day: highlights, decisions, and what's still open. |
 
-## Free API keys
+**Voice commands:** while recording, say *“Hey assistant, remind me to buy milk at 6”*. It adds the task and answers out loud.
 
-Every provider below has a free option, and the app calls it directly from your browser. Pick at least one.
+**Install it like an app:** on your phone, open the menu in Chrome and tap **Add to Home screen**. On iPhone, use the
+Share button in Safari, then **Add to Home Screen**.
 
-| Provider | Used for | Free tier | Get a key |
-|---|---|---|---|
-| **Groq** | Transcription (Whisper) + AI | Free, no card. About 8 h of audio a day | [console.groq.com/keys](https://console.groq.com/keys) |
-| **Google Gemini** | Transcription with speaker labels + AI | Free, no card. Free-tier data may be used by Google | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
-| **OpenRouter** | AI (many free models) | Free models, low daily cap | [openrouter.ai/keys](https://openrouter.ai/keys) |
-| **Mistral** | AI | Free “Experiment” plan | [console.mistral.ai](https://console.mistral.ai/api-keys) |
-| **Sarvam AI** | Best Indian-language transcription | Signup credit, then paid | [dashboard.sarvam.ai](https://dashboard.sarvam.ai) |
-| **Custom** | Any OpenAI-compatible server (Ollama, LM Studio) | Free and fully private | – |
-| **Browser** | Transcription with no key (Chrome/Edge) | Free | – |
+---
 
-**Quickest start:** get a Groq key, paste it in Settings, and press record.
+## Better results (optional)
 
-## Run it
+All of these are free. Add the key in **Settings** and choose the provider there.
+
+| If you want… | Use | Get a free key |
+|---|---|---|
+| Speaker labels (who said what) and better Hindi | **Google Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| The best accuracy for Indian languages | **Sarvam AI** (small free credit, then paid) | [dashboard.sarvam.ai](https://dashboard.sarvam.ai) |
+| More AI model choices | **OpenRouter** | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| Another free AI option | **Mistral** | [console.mistral.ai](https://console.mistral.ai/api-keys) |
+| Total privacy, nothing leaves your computer | **Ollama** on your own computer, as the *Custom* provider | [ollama.com](https://ollama.com) |
+
+> **Speaking an Indian language?** In **Settings → Transcription → Language**, pick your language instead of
+> *Auto-detect*. Accuracy improves.
+
+---
+
+## Common problems
+
+| Problem | Fix |
+|---|---|
+| The record button is greyed out | You haven't added a key yet. Go to **Settings** and paste your Groq key. |
+| “Microphone permission was denied” | Click the 🔒 lock icon next to the web address, allow the **Microphone**, and reload the page. |
+| “Rejected the API key” | The key was copied wrong. Copy it again (no spaces) or create a new one. |
+| “Free-tier limit reached” | You've used today's free allowance. Wait a while, or add a second free key (for example Gemini) and switch to it. |
+| Recording stops on my phone | Keep the app open on screen. Phones pause web pages in the background. |
+| Nothing is summarized | Summaries need a key for the AI too. A Groq key covers both. |
+| I want my data on another device | **Settings → Your data → Export backup**, then **Import backup** on the other device. |
+
+---
+
+## Privacy, in plain words
+
+- Your recordings, notes and to-dos are saved **only in your browser** on this device. There's no account and no
+  company server.
+- Only the parts where someone is speaking are sent to the service you picked (for example Groq) to be written down.
+  Silence is never sent.
+- Your keys are saved only in your browser and sent only to their own service.
+- Free plans of some services (Google, Mistral) may use what you send to improve their AI. For complete privacy, use
+  Ollama on your own computer.
+- **Always tell people when you're recording.** In many places it's required by law.
+- Clearing your browser's data deletes your recordings, so use **Export backup** now and then.
+
+---
+
+## For developers
+
+<details>
+<summary>Run it on your own computer, project structure, and how it works</summary>
+
+### Run locally
+
+Install [Node.js](https://nodejs.org) 22 or newer, then:
 
 ```bash
+git clone https://github.com/Adarshjkalathil/personal-ai.git
+cd personal-ai
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # open http://localhost:5173
 npm test         # unit tests
 npm run build    # static site in dist/
 ```
 
-### Publish it
+The microphone only works on `https://` or `localhost`.
 
-Every push runs the tests. The built `dist/` folder is a plain static site, so any static host works.
+### Deploy
 
-- **GitHub Pages:** free for public repos only (private repos need a paid plan). Once the repo is public, set
-  **Settings → Pages → Source** to **GitHub Actions**, and every push to `main` deploys to
-  `https://<you>.github.io/<repo>/`.
-- **While the repo is private:** Cloudflare Pages, Netlify and Vercel all host private repos for free. Use build
-  command `npm run build` and output folder `dist`.
+Every push to `main` runs the tests and deploys to GitHub Pages (**Settings → Pages → Source: GitHub Actions**).
+The deploy step is skipped while the repo is private. `dist/` is a plain static site, so Cloudflare Pages, Netlify or
+Vercel also work (build command `npm run build`, output folder `dist`).
 
-The microphone needs HTTPS (or `localhost`), and GitHub Pages provides HTTPS.
+### How it works
 
-## Privacy
-
-- Conversations, tasks and memories are stored only in your browser (IndexedDB). API keys are stored in
-  `localStorage` and sent only to the provider they belong to.
-- Audio leaves your device only for transcription, and only the parts where someone is speaking.
-- The production build sets a strict Content-Security-Policy and loads no third-party scripts.
-- For full privacy, use the Custom provider with a local model (for AI), and keep in mind that the free tiers of some
-  cloud providers may use your data for training.
-- **Tell people when you're recording.** Laws on recording conversations differ by country and state.
-
-## Limitations
-
-- **Keep the tab open.** Browsers pause background tabs, so the app keeps the screen awake while recording. A native
-  app or a Bluetooth pendant (see below) is needed for all-day, screen-off capture.
-- **Speaker labels can drift.** Gemini labels speakers chunk by chunk, so labels can occasionally swap.
-- **Reminders fire only while the app is open.** Use the .ics export for reminders that always go off.
-
-## How it works
+There's no backend. Every provider accepts direct browser requests (CORS).
 
 ```
 mic ─► AudioWorklet ─► 16 kHz resample ─► voice detector ─► speech chunks (≤25 s)
@@ -103,15 +157,29 @@ mic ─► AudioWorklet ─► 16 kHz resample ─► voice detector ─► spee
 | `src/lib/session.ts` | Recording session, voice commands, live hints |
 | `src/lib/db.ts` | IndexedDB storage, backup/restore |
 
-The conversation fields and the “discard trivial snippets” rule are modelled on
-[Omi](https://github.com/BasedHardware/omi) (MIT), the open-source AI wearable project.
+The production build sets a strict Content-Security-Policy and loads no third-party scripts. The conversation fields
+and the “discard trivial snippets” rule are modelled on [Omi](https://github.com/BasedHardware/omi) (MIT).
 
-## Roadmap
+### Known limitations
+
+- Browsers pause background tabs, so recording needs the app on screen (it keeps the screen awake).
+- Gemini labels speakers chunk by chunk, so labels can occasionally swap.
+- Reminder notifications fire only while the app is open. The .ics export covers the rest.
+
+### Roadmap
 
 - Bluetooth pendant support (Web Bluetooth, Omi-compatible firmware on a ~$25 XIAO nRF52840 Sense)
 - Fully on-device transcription in the browser (Whisper via WebGPU)
 - Android wrapper for background recording
 
+</details>
+
+---
+
 ## License
 
-Proprietary. All rights reserved. See [LICENSE](LICENSE).
+Proprietary. All rights reserved. See [LICENSE](LICENSE). You're welcome to use the
+[hosted app](https://adarshjkalathil.github.io/personal-ai/), but the source code may not be copied or reused without
+permission.
+
+Created in [T3 Code](https://t3.codes).
