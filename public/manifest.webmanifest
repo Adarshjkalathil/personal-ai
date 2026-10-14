@@ -1,0 +1,11 @@
+{
+  "name": "Personal AI",
+  "short_name": "Personal AI",
+  "description": "Record, transcribe, summarize and ask questions about your conversations.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f0f14",
+  "theme_color": "#c026d3",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
