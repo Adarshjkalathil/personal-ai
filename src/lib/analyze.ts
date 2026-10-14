@@ -104,7 +104,7 @@ export async function analyzeConversation(id: string): Promise<void> {
 
   try {
     const transcript = await fitTranscript(transcriptText(conversation, true), settings);
-    const raw = await chatJson<RawAnalysis>(settings, analysisPrompt(conversation, transcript, settings));
+    const { value: raw, model } = await chatJson<RawAnalysis>(settings, analysisPrompt(conversation, transcript, settings));
 
     const analysis: Analysis = {
       discard: raw.discard === true,
@@ -123,7 +123,7 @@ export async function analyzeConversation(id: string): Promise<void> {
       people: asStrings(raw.people),
       tone: { overall: raw.tone?.overall ?? '', notes: raw.tone?.notes ?? '' },
       language: raw.language ?? '',
-      model: settings.llm.model,
+      model,
       analyzedAt: Date.now(),
     };
 

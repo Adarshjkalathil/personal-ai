@@ -9,6 +9,7 @@ import { liveHints, type LiveHint } from './assist';
 import { chunkFile, MicCapture, type SpeechChunk } from './audio';
 import { get, newId, patch, put, remove, type Conversation, type Segment } from './db';
 import { ApiError, rateLimitListeners } from './http';
+import { fallbackListeners } from './llm';
 import { browserSpeechLanguage, STT_PROVIDERS, type SttProviderId } from './providers';
 import { getSettings, llmProblem, sttProblem } from './settings';
 import { transcribe, type TranscribedLine } from './stt';
@@ -85,6 +86,11 @@ class Session {
       const notice = `${provider} free-tier limit: waiting ${Math.ceil(waitMs / 1000)} s, then it continues automatically. Nothing is lost.`;
       this.set({ notice });
       setTimeout(() => this.state.notice === notice && this.set({ notice: undefined }), waitMs);
+    });
+    fallbackListeners.add((from, to) => {
+      const notice = `${from} was busy, so ${to} answered instead.`;
+      this.set({ notice });
+      setTimeout(() => this.state.notice === notice && this.set({ notice: undefined }), 15_000);
     });
   }
 

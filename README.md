@@ -69,7 +69,8 @@ Share button in Safari, then **Add to Home Screen**.
 
 ## Better results (optional)
 
-All of these are free. Add the key in **Settings** and choose the provider there.
+All of these are free. Add the key in **Settings** and choose the provider there. **Tip:** add two keys (for example Groq
+and Gemini). When one provider hits its free limit, summaries and Ask switch to the other one automatically.
 
 | If you want… | Use | Get a free key |
 |---|---|---|

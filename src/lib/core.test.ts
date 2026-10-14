@@ -3,7 +3,8 @@ import { buildIcs, googleCalendarUrl } from './actions';
 import { Chunker, SAMPLE_RATE, encodeWav, type SpeechChunk } from './audio';
 import type { Conversation } from './db';
 import { ApiError, parseErrorBody, rateLimitListeners, request } from './http';
-import { parseJson } from './llm';
+import { chat, fallbackListeners, fallbackSettings, parseJson } from './llm';
+import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { findByRef, searchConversations, tokenize } from './search';
 import { matchWakePhrase } from './session';
 import { isExpectedLanguage, keepConfidentSegments, parseSpeakerLines } from './stt';
@@ -265,5 +266,38 @@ describe('Whisper hallucination filters', () => {
     expect(isExpectedLanguage('icelandic', [])).toBe(false);
     expect(isExpectedLanguage('faroese', ['en-IN'])).toBe(false);
     expect(isExpectedLanguage('french', ['fr-FR'])).toBe(true);
+  });
+});
+
+describe('AI provider fallback', () => {
+  const settingsWith = (keys: Partial<Settings['keys']>): Settings => ({
+    ...DEFAULT_SETTINGS,
+    keys: { ...DEFAULT_SETTINGS.keys, ...keys },
+    llm: { provider: 'gemini', model: 'gemini-3.8-flash', baseUrl: '' },
+  });
+
+  it('switches to another provider at once when the chosen one is rate-limited', async () => {
+    const hosts: string[] = [];
+    const switches: string[] = [];
+    const listener = (from: string, to: string) => switches.push(`${from} -> ${to}`);
+    fallbackListeners.add(listener);
+    globalThis.fetch = (async (url: string) => {
+      hosts.push(new URL(url).host);
+      return url.includes('googleapis')
+        ? new Response(JSON.stringify({ error: { message: 'Please retry in 30s.', details: [{ retryDelay: '30s' }] } }), { status: 429 })
+        : new Response(JSON.stringify({ choices: [{ message: { content: 'hi' } }] }), { status: 200 });
+    }) as typeof fetch;
+    const started = Date.now();
+    const result = await chat(settingsWith({ gemini: 'g', groq: 'q' }), [{ role: 'user', content: 'hello' }]);
+    fallbackListeners.delete(listener);
+    expect(result).toMatchObject({ content: 'hi', model: 'openai/gpt-oss-120b' });
+    expect(hosts).toEqual(['generativelanguage.googleapis.com', 'api.groq.com']);
+    expect(switches).toEqual(['Google Gemini -> Groq']);
+    expect(Date.now() - started).toBeLessThan(2000); // didn't wait 30 s
+  });
+
+  it('only offers providers the user has keys for', () => {
+    expect(fallbackSettings(settingsWith({ gemini: 'g' }))).toHaveLength(0);
+    expect(fallbackSettings(settingsWith({ gemini: 'g', mistral: 'm', groq: 'q' })).map((s) => s.llm.provider)).toEqual(['groq', 'mistral']);
   });
 });

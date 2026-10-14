@@ -12,7 +12,7 @@ export interface LiveHint {
 export async function liveHints(recentTranscript: string): Promise<LiveHint[]> {
   const settings = getSettings();
   if (llmProblem(settings)) return [];
-  const result = await chatJson<{ hints?: LiveHint[] }>(settings, [
+  const { value: result } = await chatJson<{ hints?: LiveHint[] }>(settings, [
     {
       role: 'user',
       content: `You are a discreet assistant listening to an in-progress conversation through the user's wearable. Current time: ${nowForPrompt()}.

@@ -112,8 +112,8 @@ export function SettingsView() {
     <div className="settings">
       <Notice>
         <b>Everything here is free to start.</b> The quickest setup is a <b>Groq</b> key (transcription and AI), or a <b>Gemini</b>{' '}
-        key if you want speaker labels and better Hindi. Keys are stored only in this browser and sent only to the provider they
-        belong to.
+        key if you want speaker labels and better Hindi. Add more than one key and the AI switches to another provider by itself
+        when one hits its free limit. Keys are stored only in this browser and sent only to the provider they belong to.
       </Notice>
 
       <Section title="API keys">

@@ -81,9 +81,10 @@ function friendly(provider: string, status: number, info: ErrorInfo): string {
 /**
  * fetch() that waits out rate limits for as long as the provider asks (up to 90 s),
  * retries server errors with backoff, gives up at once on daily limits, and turns
- * failures into readable messages.
+ * failures into readable messages. Pass waitOnRateLimit=false to fail fast on 429
+ * (when the caller has another provider to try).
  */
-export async function request(provider: string, url: string, init: RequestInit, retries = 3): Promise<Response> {
+export async function request(provider: string, url: string, init: RequestInit, retries = 3, waitOnRateLimit = true): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     let response: Response;
     try {
@@ -97,7 +98,7 @@ export async function request(provider: string, url: string, init: RequestInit, 
     if (response.ok) return response;
 
     const info = parseErrorBody(await response.text().catch(() => ''), response.headers.get('retry-after'), response.statusText);
-    if (response.status === 429 && !info.daily && attempt < retries) {
+    if (response.status === 429 && !info.daily && waitOnRateLimit && attempt < retries) {
       const wait = (info.retryAfterMs ?? 5000 * 2 ** attempt) + 500;
       if (wait <= MAX_WAIT_MS) {
         rateLimitListeners.forEach((listener) => listener(provider, wait));
