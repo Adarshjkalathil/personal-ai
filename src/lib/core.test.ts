@@ -6,7 +6,7 @@ import { ApiError, parseErrorBody, rateLimitListeners, request } from './http';
 import { parseJson } from './llm';
 import { findByRef, searchConversations, tokenize } from './search';
 import { matchWakePhrase } from './session';
-import { parseSpeakerLines } from './stt';
+import { isExpectedLanguage, keepConfidentSegments, parseSpeakerLines } from './stt';
 
 function tone(seconds: number, amplitude: number): Float32Array {
   const samples = new Float32Array(Math.round(seconds * SAMPLE_RATE));
@@ -244,5 +244,26 @@ describe('request rate-limit handling', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).daily).toBe(true);
     expect((error as ApiError).message).toContain('daily limit');
+  });
+});
+
+describe('Whisper hallucination filters', () => {
+  it('drops low-confidence, repetitive and no-speech segments', () => {
+    const kept = keepConfidentSegments([
+      { text: 'Let us meet at five.', avg_logprob: -0.3, no_speech_prob: 0.01, compression_ratio: 1.2 },
+      { text: 'Enn álenda þarfísa, er ekki aðra', avg_logprob: -1.4, no_speech_prob: 0.2, compression_ratio: 1.3 },
+      { text: 'okay okay okay okay okay okay okay', avg_logprob: -0.4, no_speech_prob: 0.1, compression_ratio: 3.1 },
+      { text: 'Thank you.', avg_logprob: -0.7, no_speech_prob: 0.8, compression_ratio: 0.9 },
+    ]);
+    expect(kept.map((s) => s.text)).toEqual(['Let us meet at five.']);
+  });
+
+  it('accepts app and browser languages, rejects unlikely detections', () => {
+    expect(isExpectedLanguage('malayalam', [])).toBe(true);
+    expect(isExpectedLanguage('English', [])).toBe(true);
+    expect(isExpectedLanguage('ta', [])).toBe(true);
+    expect(isExpectedLanguage('icelandic', [])).toBe(false);
+    expect(isExpectedLanguage('faroese', ['en-IN'])).toBe(false);
+    expect(isExpectedLanguage('french', ['fr-FR'])).toBe(true);
   });
 });

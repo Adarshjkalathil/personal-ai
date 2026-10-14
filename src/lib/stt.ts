@@ -28,25 +28,77 @@ export async function transcribe(chunk: SpeechChunk, settings: Settings, context
   }
 }
 
+interface WhisperSegment {
+  text: string;
+  avg_logprob?: number;
+  no_speech_prob?: number;
+  compression_ratio?: number;
+}
+
+/** Thrown when auto-detect picks a language the user almost certainly isn't speaking. */
+export class LanguageError extends Error {}
+
 async function groq(wav: Blob, settings: Settings, context: TranscribeContext): Promise<TranscribedLine[]> {
   const form = new FormData();
   form.append('file', wav, 'chunk.wav');
   form.append('model', settings.stt.model);
-  form.append('response_format', 'json');
+  // verbose_json adds per-segment confidence and the detected language, used to drop hallucinations.
+  form.append('response_format', 'verbose_json');
   form.append('temperature', '0');
   const language = whisperLanguage(settings.stt.language);
   if (language) form.append('language', language);
-  // Whisper uses the prompt as preceding context (it keeps roughly the last 224 tokens).
-  if (context.previousText) form.append('prompt', context.previousText.slice(-400));
+  // Whisper uses the prompt as preceding context; keep it short so one bad line can't snowball.
+  if (context.previousText) form.append('prompt', context.previousText.slice(-200));
 
   const response = await request('Groq', 'https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${sttKey(settings)}` },
     body: form,
   });
-  const { text } = (await response.json()) as { text: string };
-  return isHallucination(text) ? [] : [{ text: text.trim() }];
+  const result = (await response.json()) as { text: string; language?: string; segments?: WhisperSegment[] };
+
+  if (!settings.stt.language && result.language && !isExpectedLanguage(result.language)) {
+    throw new LanguageError(
+      `Auto-detect thought this was ${capitalize(result.language)}, which is probably wrong, so the audio was kept instead of saved as text. Choose your language above, then tap Retry.`,
+    );
+  }
+  const text = result.segments ? keepConfidentSegments(result.segments).map((s) => s.text.trim()).join(' ') : result.text;
+  return !text.trim() || isHallucination(text) ? [] : [{ text: text.trim() }];
 }
+
+/**
+ * Drops segments Whisper likely made up, using OpenAI's own thresholds: very low
+ * confidence, repetitive output, or silence it "heard" words in.
+ */
+export function keepConfidentSegments(segments: WhisperSegment[]): WhisperSegment[] {
+  return segments.filter((s) => {
+    const logprob = s.avg_logprob ?? 0;
+    if (logprob < -1) return false;
+    if ((s.compression_ratio ?? 0) > 2.4) return false;
+    if ((s.no_speech_prob ?? 0) > 0.6 && logprob < -0.5) return false;
+    return !isHallucination(s.text);
+  });
+}
+
+/**
+ * True if a detected language is plausible for this user: one of the app's languages
+ * or one of the browser's languages. Whisper often "detects" Icelandic, Welsh, Maori…
+ * for noise or accents it doesn't know.
+ */
+export function isExpectedLanguage(detected: string, browserLanguages: readonly string[] = globalThis.navigator?.languages ?? []): boolean {
+  const names = new Intl.DisplayNames(['en'], { type: 'language' });
+  const codes = new Set(['en', 'od', 'or', 'ne', ...LANGUAGES.map((l) => l.code), ...browserLanguages].map((c) => c.split('-')[0].toLowerCase()).filter(Boolean));
+  const allowed = new Set<string>();
+  for (const code of codes) {
+    allowed.add(code);
+    const name = names.of(code)?.toLowerCase();
+    if (name) allowed.add(name);
+  }
+  const value = detected.trim().toLowerCase();
+  return allowed.has(value) || allowed.has(value.split('-')[0]);
+}
+
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 async function gemini(wav: Blob, settings: Settings, context: TranscribeContext): Promise<TranscribedLine[]> {
   const language = LANGUAGES.find((l) => l.code === settings.stt.language && l.code);

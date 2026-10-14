@@ -1,11 +1,14 @@
 import { useRef, type CSSProperties } from 'react';
 import { Notice, navigate } from '../components';
 import { useList, speakerName } from '../lib/db';
-import { LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
+import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
 import { session, useSession } from '../lib/session';
-import { llmProblem, sttProblem, useSettings } from '../lib/settings';
+import { llmProblem, sttProblem, updateSettings, useSettings } from '../lib/settings';
 import { formatDuration, formatTime } from '../lib/time';
 import { AgentActions } from './AskView';
+
+// Whisper's accuracy is poor for these (it often outputs another language or invents text).
+const WHISPER_WEAK = new Set(['ml-IN', 'ta-IN', 'te-IN', 'kn-IN', 'od-IN', 'as-IN', 'pa-IN', 'gu-IN', 'mr-IN', 'bn-IN']);
 
 const HINT_ICONS = { question: '❓', commitment: '📌', fact: '💡', tip: '✨' } as const;
 
@@ -62,6 +65,26 @@ export function RecordView() {
           )}
         </div>
       </div>
+
+      <label className="language-row">
+        <span>Spoken language</span>
+        <select value={settings.stt.language} onChange={(e) => updateSettings({ stt: { ...settings.stt, language: e.target.value } })}>
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {!settings.stt.language && settings.stt.provider !== 'browser' && (
+        <p className="muted small">Auto-detect can guess wrong. Choosing your language gives much better text.</p>
+      )}
+      {settings.stt.provider === 'groq' && WHISPER_WEAK.has(settings.stt.language) && (
+        <Notice>
+          Groq Whisper is weak at {LANGUAGES.find((l) => l.code === settings.stt.language)?.label}. Google Gemini or Sarvam AI
+          transcribe it much better. You can switch in <a href="#/settings">Settings</a>.
+        </Notice>
+      )}
 
       {state.notice && <Notice>⏳ {state.notice}</Notice>}
       {state.error && <Notice kind="error">{state.error}</Notice>}

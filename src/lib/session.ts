@@ -82,7 +82,7 @@ class Session {
 
   constructor() {
     rateLimitListeners.add((provider, waitMs) => {
-      const notice = `${provider} free-tier limit: waiting ${Math.ceil(waitMs / 1000)} s before sending more. Nothing is lost; recording continues.`;
+      const notice = `${provider} free-tier limit: waiting ${Math.ceil(waitMs / 1000)} s, then it continues automatically. Nothing is lost.`;
       this.set({ notice });
       setTimeout(() => this.state.notice === notice && this.set({ notice: undefined }), waitMs);
     });

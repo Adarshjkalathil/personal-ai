@@ -686,3 +686,16 @@ a.link {
   justify-content: space-between;
   gap: 0.75rem;
 }
+
+.language-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.language-row select {
+  width: auto;
+  flex: 1;
+  max-width: 260px;
+}
