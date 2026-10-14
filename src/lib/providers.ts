@@ -1,3 +1,5 @@
+import { DEFAULT_CHUNK_POLICY, type ChunkPolicy } from './audio';
+
 // Every provider here has a free option and accepts direct browser (CORS) requests,
 // so the app needs no backend. Limits change often; the notes are a starting point.
 
@@ -48,6 +50,8 @@ export interface SttProvider {
   key?: KeyId;
   defaultModel: string;
   note: string;
+  /** How audio is split into requests; free tiers limit requests per minute, so fewer, longer chunks go further. */
+  chunks: ChunkPolicy;
 }
 
 export const STT_PROVIDERS: Record<SttProviderId, SttProvider> = {
@@ -55,24 +59,31 @@ export const STT_PROVIDERS: Record<SttProviderId, SttProvider> = {
     label: 'Browser speech recognition (no key)',
     defaultModel: '',
     note: 'Free with no key. Works best in Chrome/Edge. The browser vendor processes the audio. No speaker labels, and a language must be chosen.',
+    chunks: DEFAULT_CHUNK_POLICY,
   },
   groq: {
     label: 'Groq Whisper',
     key: 'groq',
     defaultModel: 'whisper-large-v3-turbo',
     note: 'Fast and free. Good for English and Hindi, weaker for other Indian languages. No speaker labels.',
+    // Groq bills at least 10 s per request and allows ~20 requests a minute.
+    chunks: { minMs: 10_000, maxMs: 60_000, longPauseMs: 3_000 },
   },
   gemini: {
     label: 'Google Gemini',
     key: 'gemini',
     defaultModel: 'gemini-3.6-flash',
-    note: 'Free. Labels speakers (Speaker 1, Speaker 2…). Good for Hindi and mixed Hindi-English.',
+    note: 'Free. Labels speakers (Speaker 1, Speaker 2…). Good for Hindi and mixed Hindi-English. The free tier allows only a few requests a minute, so audio is sent in longer pieces and text appears less often.',
+    // The free tier allows only a handful of requests per minute: send ~30-120 s at a time.
+    chunks: { minMs: 30_000, maxMs: 120_000, longPauseMs: 8_000 },
   },
   sarvam: {
     label: 'Sarvam AI',
     key: 'sarvam',
     defaultModel: 'saaras:v4',
     note: 'Best for Indian languages and code-mixed speech. Uses paid credits after the signup bonus.',
+    // Sarvam's REST endpoint accepts audio under 30 s.
+    chunks: DEFAULT_CHUNK_POLICY,
   },
 };
 

@@ -679,3 +679,10 @@ a.link {
   flex: 1;
   min-width: 200px;
 }
+
+.held {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}

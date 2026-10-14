@@ -8,7 +8,8 @@ import { analyzeConversation } from './analyze';
 import { liveHints, type LiveHint } from './assist';
 import { chunkFile, MicCapture, type SpeechChunk } from './audio';
 import { get, newId, patch, put, remove, type Conversation, type Segment } from './db';
-import { browserSpeechLanguage } from './providers';
+import { ApiError, rateLimitListeners } from './http';
+import { browserSpeechLanguage, STT_PROVIDERS, type SttProviderId } from './providers';
 import { getSettings, llmProblem, sttProblem } from './settings';
 import { transcribe, type TranscribedLine } from './stt';
 
@@ -28,9 +29,18 @@ export interface SessionState {
   /** Live, not-yet-final text from browser speech recognition. */
   interim: string;
   upload?: { name: string; done: number; total: number };
+  /** Audio that couldn't be transcribed yet and is kept for a retry. */
+  held: { count: number; ms: number };
+  /** Temporary status, e.g. waiting out a rate limit. */
+  notice?: string;
   hints: LiveHint[];
   command?: CommandResult;
   error?: string;
+}
+
+interface Job {
+  chunk: SpeechChunk;
+  conversationId: string;
 }
 
 // Minimal Web Speech API typings (not in TypeScript's DOM lib everywhere).
@@ -50,9 +60,11 @@ interface Recognition {
 }
 
 const HINT_INTERVAL_MS = 45_000;
+/** Cap on audio kept in memory for retries (~60 MB of samples). */
+const MAX_HELD_MS = 15 * 60_000;
 
 class Session {
-  state: SessionState = { mode: 'idle', level: 0, pending: 0, interim: '', hints: [] };
+  state: SessionState = { mode: 'idle', level: 0, pending: 0, interim: '', held: { count: 0, ms: 0 }, hints: [] };
   private listeners = new Set<() => void>();
   private mic?: MicCapture;
   private recognition?: Recognition;
@@ -64,6 +76,17 @@ class Session {
   private hintsBusy = false;
   private lastHintAt = 0;
   private wordsSinceHint = 0;
+  private held: Job[] = [];
+  /** Provider whose daily limit is used up; new audio is held instead of sent until the provider changes or Retry. */
+  private exhausted?: SttProviderId;
+
+  constructor() {
+    rateLimitListeners.add((provider, waitMs) => {
+      const notice = `${provider} free-tier limit: waiting ${Math.ceil(waitMs / 1000)} s before sending more. Nothing is lost; recording continues.`;
+      this.set({ notice });
+      setTimeout(() => this.state.notice === notice && this.set({ notice: undefined }), waitMs);
+    });
+  }
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -87,7 +110,7 @@ class Session {
     try {
       if (settings.stt.provider === 'browser') this.startBrowserSpeech();
       else {
-        this.mic = new MicCapture((chunk) => this.enqueue(chunk, 'mic'));
+        this.mic = new MicCapture((chunk) => this.enqueue(chunk, 'mic'), STT_PROVIDERS[settings.stt.provider].chunks);
         await this.mic.start();
         this.timers.push(window.setInterval(() => this.set({ level: this.mic?.chunker.level ?? 0 }), 100));
       }
@@ -124,20 +147,62 @@ class Session {
   // ---- Chunk pipeline (sequential, so transcripts stay in order) ----
 
   private enqueue(chunk: SpeechChunk, source: Conversation['source']) {
+    this.schedule(async () => this.process({ chunk, conversationId: await this.conversationFor(chunk.start, source) }));
+  }
+
+  private schedule(task: () => Promise<void>) {
     this.set({ pending: this.state.pending + 1 });
     this.queue = this.queue
-      .then(() => this.handleChunk(chunk, source))
+      .then(task)
       .catch((error: Error) => this.set({ error: error.message }))
       .finally(() => this.set({ pending: this.state.pending - 1 }));
   }
 
-  private async handleChunk(chunk: SpeechChunk, source: Conversation['source']) {
-    const id = await this.conversationFor(chunk.start, source);
-    const conversation = await get('conversations', id);
-    const previousText = conversation?.segments.slice(-6).map((s) => (s.speaker ? `${s.speaker}: ${s.text}` : s.text)).join('\n') ?? '';
-    const lines = await transcribe(chunk, getSettings(), { previousText });
-    if (lines.length) this.set({ error: undefined });
-    await this.addLines(id, lines, chunk.start, chunk.start + chunk.durationMs);
+  /** Transcribes one chunk. Failures keep the audio for a later retry instead of losing it. */
+  private async process(job: Job): Promise<void> {
+    const settings = getSettings();
+    if (this.exhausted === settings.stt.provider) {
+      this.hold(job);
+      return;
+    }
+    try {
+      const conversation = await get('conversations', job.conversationId);
+      const previousText = conversation?.segments.slice(-6).map((s) => (s.speaker ? `${s.speaker}: ${s.text}` : s.text)).join('\n') ?? '';
+      const lines = await transcribe(job.chunk, settings, { previousText });
+      if (!this.held.length) this.set({ error: undefined, notice: undefined });
+      await this.addLines(job.conversationId, lines, job.chunk.start, job.chunk.start + job.chunk.durationMs);
+    } catch (error) {
+      this.hold(job);
+      if (error instanceof ApiError && error.daily) this.exhausted = settings.stt.provider;
+      this.set({ error: (error as Error).message, notice: undefined });
+    }
+  }
+
+  private hold(job: Job) {
+    this.held.push(job);
+    let ms = this.held.reduce((n, j) => n + j.chunk.durationMs, 0);
+    while (ms > MAX_HELD_MS && this.held.length > 1) ms -= this.held.shift()!.chunk.durationMs;
+    this.set({ held: { count: this.held.length, ms } });
+  }
+
+  /** Sends held audio again, e.g. after waiting or switching provider. */
+  retryHeld(): void {
+    if (!this.held.length || this.state.mode === 'uploading') return;
+    const jobs = this.held;
+    this.held = [];
+    this.exhausted = undefined;
+    this.set({ held: { count: 0, ms: 0 }, error: undefined });
+    for (const job of jobs) this.schedule(() => this.process(job));
+    this.schedule(async () => {
+      // Conversations that already ended get their status back and a fresh summary.
+      for (const id of new Set(jobs.map((j) => j.conversationId))) {
+        if (id === this.state.conversationId || this.held.some((j) => j.conversationId === id)) continue;
+        const conversation = await patch('conversations', id, (c) => {
+          if (c.status !== 'recording') c.error = undefined;
+        });
+        if (conversation && conversation.status !== 'recording') await this.afterFinish(conversation);
+      }
+    });
   }
 
   private async addLines(id: string, lines: TranscribedLine[], start: number, end: number) {
@@ -178,13 +243,24 @@ class Session {
     if (this.state.conversationId === id) this.set({ conversationId: undefined });
     const conversation = await get('conversations', id);
     if (!conversation || conversation.status !== 'recording') return; // already finished
-    if (!conversation.segments.length) {
+    const waiting = this.held.some((j) => j.conversationId === id);
+    if (!conversation.segments.length && !waiting) {
       await remove('conversations', id);
       return;
     }
-    await patch('conversations', id, (c) => (c.status = 'transcribed'));
+    const finished = await patch('conversations', id, (c) => {
+      c.status = 'transcribed';
+      if (waiting) c.error = 'Part of this conversation hasn’t been transcribed yet. Tap “Retry” on the Record tab.';
+    });
+    if (finished && !waiting) await this.afterFinish(finished);
+  }
+
+  /** Summarizes in the background; any error is saved on the conversation. */
+  private async afterFinish(conversation: Conversation) {
     const settings = getSettings();
-    if (settings.autoAnalyze && !llmProblem(settings)) analyzeConversation(id).catch(() => undefined); // error is saved on the conversation
+    if (conversation.segments.length && settings.autoAnalyze && !llmProblem(settings)) {
+      analyzeConversation(conversation.id).catch(() => undefined);
+    }
   }
 
   // ---- Browser speech recognition (no key) ----
@@ -295,14 +371,12 @@ class Session {
     const startedAt = file.lastModified || Date.now();
     const conversation: Conversation = { id: newId(), startedAt, endedAt: startedAt, source: 'upload', fileName: file.name, status: 'recording', segments: [] };
     try {
-      const chunks = await chunkFile(file, startedAt);
+      const chunks = await chunkFile(file, startedAt, STT_PROVIDERS[settings.stt.provider].chunks);
       if (!chunks.length) throw new Error('No speech was found in that file.');
       await put('conversations', conversation);
       this.set({ upload: { name: file.name, done: 0, total: chunks.length } });
       for (const [i, chunk] of chunks.entries()) {
-        const previous = (await get('conversations', conversation.id))?.segments.slice(-6).map((s) => s.text).join('\n') ?? '';
-        const lines = await transcribe(chunk, settings, { previousText: previous });
-        await this.addLines(conversation.id, lines, chunk.start, chunk.start + chunk.durationMs);
+        await this.process({ chunk, conversationId: conversation.id });
         this.set({ upload: { name: file.name, done: i + 1, total: chunks.length } });
       }
       await this.finish(conversation.id);

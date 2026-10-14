@@ -89,7 +89,8 @@ All of these are free. Add the key in **Settings** and choose the provider there
 | The record button is greyed out | You haven't added a key yet. Go to **Settings** and paste your Groq key. |
 | “Microphone permission was denied” | Click the 🔒 lock icon next to the web address, allow the **Microphone**, and reload the page. |
 | “Rejected the API key” | The key was copied wrong. Copy it again (no spaces) or create a new one. |
-| “Free-tier limit reached” | You've used today's free allowance. Wait a while, or add a second free key (for example Gemini) and switch to it. |
+| “Free-tier limit” or “daily limit is used up” | Free plans allow only so many requests per minute and per day. Your audio isn't lost: it's saved, and a **Retry** button appears on the Record tab. Wait a minute (or until tomorrow for a daily limit), or add a second free key (for example Groq) in Settings, switch to it, and tap **Retry**. |
+| Gemini text appears slowly | That's on purpose. Gemini's free plan allows very few requests a minute, so the app sends 30 seconds to 2 minutes of speech at a time. Groq is faster. |
 | Recording stops on my phone | Keep the app open on screen. Phones pause web pages in the background. |
 | Nothing is summarized | Summaries need a key for the AI too. A Groq key covers both. |
 | I want my data on another device | **Settings → Your data → Export backup**, then **Import backup** on the other device. |

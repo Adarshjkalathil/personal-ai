@@ -1,9 +1,9 @@
 // Audio capture and speech chunking.
 //
 // Audio is resampled to 16 kHz mono. A simple energy-based voice detector cuts
-// it into speech chunks at natural pauses, and silence is never uploaded. That
-// keeps free-tier quotas going further and every chunk under the ~30 s
-// limit of the strictest provider (Sarvam).
+// it into speech chunks at natural pauses, and silence is never uploaded.
+// Chunk length is set per provider (ChunkPolicy): request-limited free tiers
+// like Gemini get long chunks, while Sarvam's API needs them under 30 s.
 
 export const SAMPLE_RATE = 16_000;
 
@@ -11,11 +11,19 @@ const FRAME = 480; // 30 ms at 16 kHz
 const FRAME_MS = 30;
 const PRE_ROLL_FRAMES = 10; // keep 300 ms before speech starts
 const HANGOVER_MS = 300; // treat brief dips as continued speech
-const MIN_CHUNK_MS = 5_000; // prefer pauses after this length
-const PAUSE_MS = 700; // a pause this long ends a chunk (once past MIN_CHUNK_MS)
-const LONG_PAUSE_MS = 1_800; // always end a chunk after this much silence
-const MAX_CHUNK_MS = 25_000;
+const PAUSE_MS = 700; // a pause this long ends a chunk once it is past policy.minMs
 const MIN_VOICED_MS = 600; // drop chunks with less speech than this (coughs, clicks)
+
+export interface ChunkPolicy {
+  /** End a chunk at the first pause after this length. */
+  minMs: number;
+  /** Never exceed this length. */
+  maxMs: number;
+  /** Always end a chunk after this much silence. */
+  longPauseMs: number;
+}
+
+export const DEFAULT_CHUNK_POLICY: ChunkPolicy = { minMs: 5_000, maxMs: 25_000, longPauseMs: 1_800 };
 
 export interface SpeechChunk {
   /** Epoch ms of the first sample. */
@@ -46,6 +54,7 @@ export class Chunker {
   constructor(
     private onChunk: (chunk: SpeechChunk) => void,
     startTime = Date.now(),
+    private policy: ChunkPolicy = DEFAULT_CHUNK_POLICY,
   ) {
     this.clock = startTime;
   }
@@ -100,9 +109,9 @@ export class Chunker {
       if (loud) this.voicedMs += FRAME_MS;
       this.silenceMs = speaking ? 0 : this.silenceMs + FRAME_MS;
       if (
-        this.chunkMs + FRAME_MS > MAX_CHUNK_MS ||
-        this.silenceMs >= LONG_PAUSE_MS ||
-        (this.chunkMs >= MIN_CHUNK_MS && this.silenceMs >= PAUSE_MS)
+        this.chunkMs + FRAME_MS > this.policy.maxMs ||
+        this.silenceMs >= this.policy.longPauseMs ||
+        (this.chunkMs >= this.policy.minMs && this.silenceMs >= PAUSE_MS)
       ) {
         this.emit();
       }
@@ -158,8 +167,8 @@ export class MicCapture {
   private node?: AudioWorkletNode;
   readonly chunker: Chunker;
 
-  constructor(onChunk: (chunk: SpeechChunk) => void) {
-    this.chunker = new Chunker(onChunk);
+  constructor(onChunk: (chunk: SpeechChunk) => void, policy = DEFAULT_CHUNK_POLICY) {
+    this.chunker = new Chunker(onChunk, Date.now(), policy);
   }
 
   async start(): Promise<void> {
@@ -185,7 +194,7 @@ export class MicCapture {
 }
 
 /** Decodes an audio/video file and splits it into speech chunks, timestamped from `startTime`. */
-export async function chunkFile(file: File, startTime: number): Promise<SpeechChunk[]> {
+export async function chunkFile(file: File, startTime: number, policy = DEFAULT_CHUNK_POLICY): Promise<SpeechChunk[]> {
   const decoder = new AudioContext();
   const decoded = await decoder.decodeAudioData(await file.arrayBuffer());
   await decoder.close();
@@ -199,7 +208,7 @@ export async function chunkFile(file: File, startTime: number): Promise<SpeechCh
   const rendered = await offline.startRendering();
 
   const chunks: SpeechChunk[] = [];
-  const chunker = new Chunker((chunk) => chunks.push(chunk), startTime);
+  const chunker = new Chunker((chunk) => chunks.push(chunk), startTime, policy);
   chunker.push(rendered.getChannelData(0));
   chunker.flush();
   return chunks;

@@ -4,7 +4,7 @@ import { useList, speakerName } from '../lib/db';
 import { LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
 import { session, useSession } from '../lib/session';
 import { llmProblem, sttProblem, useSettings } from '../lib/settings';
-import { formatTime } from '../lib/time';
+import { formatDuration, formatTime } from '../lib/time';
 import { AgentActions } from './AskView';
 
 const HINT_ICONS = { question: '❓', commitment: '📌', fact: '💡', tip: '✨' } as const;
@@ -54,13 +54,30 @@ export function RecordView() {
             {!llmIssue && ` · AI: ${LLM_PROVIDERS[settings.llm.provider].label}`}
           </span>
           {state.pending > 0 && <span className="muted">Transcribing {state.pending} chunk{state.pending > 1 ? 's' : ''}…</span>}
+          {recording && settings.stt.provider === 'gemini' && (
+            <span className="muted">Text appears about every 30 s–2 min, to stay within Gemini’s free limits.</span>
+          )}
           {recording && settings.voiceCommands && !llmIssue && (
             <span className="muted">Say “{settings.wakePhrase}, …” to give a command.</span>
           )}
         </div>
       </div>
 
+      {state.notice && <Notice>⏳ {state.notice}</Notice>}
       {state.error && <Notice kind="error">{state.error}</Notice>}
+      {state.held.count > 0 && (
+        <Notice kind="warn">
+          <div className="held">
+            <span>
+              {formatDuration(state.held.ms)} of audio is saved and waiting to be transcribed. Wait a minute or switch provider in{' '}
+              <a href="#/settings">Settings</a>, then retry.
+            </span>
+            <button className="small" disabled={state.mode === 'uploading'} onClick={() => session.retryHeld()}>
+              Retry
+            </button>
+          </div>
+        </Notice>
+      )}
 
       {state.command && (
         <div className="card command">

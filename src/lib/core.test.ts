@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildIcs, googleCalendarUrl } from './actions';
 import { Chunker, SAMPLE_RATE, encodeWav, type SpeechChunk } from './audio';
 import type { Conversation } from './db';
+import { ApiError, parseErrorBody, rateLimitListeners, request } from './http';
 import { parseJson } from './llm';
 import { findByRef, searchConversations, tokenize } from './search';
 import { matchWakePhrase } from './session';
@@ -154,5 +155,94 @@ describe('calendar actions', () => {
     expect(text).toContain('SUMMARY:Call\\; Ravi\\, now');
     expect(text).toContain('DTSTART:20261015T073000Z');
     expect(text).toContain('TRIGGER:-PT10M');
+  });
+});
+
+describe('chunk policy', () => {
+  it('makes long chunks for request-limited providers', () => {
+    const chunks: SpeechChunk[] = [];
+    const chunker = new Chunker((c) => chunks.push(c), 0, { minMs: 30_000, maxMs: 120_000, longPauseMs: 8_000 });
+    // 50 s of speech with 2 s pauses every 10 s: cut at the first pause after 30 s,
+    // so 2 requests instead of 5 with the default policy.
+    for (let i = 0; i < 5; i++) {
+      chunker.push(tone(10, 0.3));
+      chunker.push(silence(2));
+    }
+    chunker.push(silence(10));
+    chunker.flush();
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0].durationMs).toBeGreaterThanOrEqual(30_000);
+    expect(runChunker(...Array.from({ length: 5 }, () => [tone(10, 0.3), silence(2)]).flat())).toHaveLength(5);
+  });
+});
+
+describe('parseErrorBody', () => {
+  it('reads Gemini per-minute retry info', () => {
+    const body = JSON.stringify({
+      error: {
+        code: 429,
+        message: 'You exceeded your current quota. Please retry in 37.5s.',
+        status: 'RESOURCE_EXHAUSTED',
+        details: [
+          { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier' }] },
+          { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '37s' },
+        ],
+      },
+    });
+    expect(parseErrorBody(body, null)).toMatchObject({ retryAfterMs: 37_000, daily: false });
+  });
+
+  it('detects Gemini daily quota', () => {
+    const body = JSON.stringify({
+      error: { code: 429, message: 'Quota exceeded', details: [{ violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] },
+    });
+    expect(parseErrorBody(body, null).daily).toBe(true);
+  });
+
+  it('reads Groq "try again in" messages', () => {
+    const body = JSON.stringify({
+      error: { message: 'Rate limit reached for model `whisper-large-v3-turbo` on requests per minute (RPM): Limit 20, Used 20. Please try again in 1m2.5s.' },
+    });
+    expect(parseErrorBody(body, null)).toMatchObject({ retryAfterMs: 62_500, daily: false });
+    expect(parseErrorBody(JSON.stringify({ error: { message: 'Limit reached on audio seconds per day (ASPD). Please try again in 7m3s.' } }), null).daily).toBe(true);
+  });
+
+  it('prefers Retry-After and handles non-JSON bodies', () => {
+    expect(parseErrorBody('Too Many Requests', '12')).toMatchObject({ retryAfterMs: 12_000, detail: 'Too Many Requests' });
+  });
+});
+
+describe('request rate-limit handling', () => {
+  const reply = (status: number, body: object) => new Response(JSON.stringify(body), { status });
+
+  it('waits out a per-minute limit, then succeeds', async () => {
+    const calls: number[] = [];
+    const waits: number[] = [];
+    const listener = (_: string, ms: number) => waits.push(ms);
+    rateLimitListeners.add(listener);
+    globalThis.fetch = (async () => {
+      calls.push(Date.now());
+      return calls.length === 1
+        ? reply(429, { error: { message: 'quota', details: [{ retryDelay: '0.05s' }] } })
+        : reply(200, { ok: true });
+    }) as typeof fetch;
+    const response = await request('Gemini', 'https://example.test', {});
+    rateLimitListeners.delete(listener);
+    expect(response.ok).toBe(true);
+    expect(calls).toHaveLength(2);
+    expect(waits[0]).toBeGreaterThanOrEqual(50);
+  });
+
+  it('gives up immediately on a daily limit', async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return reply(429, { error: { message: 'Quota exceeded', details: [{ violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] } });
+    }) as typeof fetch;
+    const error = await request('Gemini', 'https://example.test', {}).catch((e: ApiError) => e);
+    expect(calls).toBe(1);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).daily).toBe(true);
+    expect((error as ApiError).message).toContain('daily limit');
   });
 });
