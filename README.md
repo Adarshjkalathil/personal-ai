@@ -86,6 +86,12 @@ and Gemini). When one provider hits its free limit, the app asks whether to use 
 > transcription, or pick a *different* Gemini model for each (every model has its own 20). **Settings** shows how many
 > you've used today; [aistudio.google.com/rate-limit](https://aistudio.google.com/rate-limit) shows Google's exact count.
 
+> **Have Google AI Pro, or happy to pay a little?** AI Pro itself doesn't raise these limits, but it includes about
+> $10 a month of Google Cloud credit. To use it, open AI Studio, tap **Set up billing** for your key's project, and set
+> a **monthly spend cap** on the **Spend** page (or use prepay for a hard stop). Then, in this app's **Settings**, under
+> Google Gemini, turn on **Billing is enabled for this key**. The app stops pacing itself and shows text every 10–60
+> seconds.
+
 > **Speaking an Indian language?** In **Settings → Transcription → Language**, pick your language instead of
 > *Auto-detect*. Accuracy improves.
 

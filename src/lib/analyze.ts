@@ -1,4 +1,4 @@
-import { ApiError } from './http';
+import { limitKind } from './http';
 import { chat, chatJson, withProvider, type ChatMessage } from './llm';
 import { get, list, newId, patch, put, remove, transcriptText, type Analysis, type Conversation, type Task } from './db';
 import { LLM_PROVIDERS, type LlmProviderId } from './providers';
@@ -147,7 +147,7 @@ export async function analyzeConversation(id: string, options: AnalyzeOptions = 
     await patch('conversations', id, (c) => {
       c.status = 'error';
       c.error = error instanceof Error ? error.message : String(error);
-      c.errorKind = error instanceof ApiError && error.rateLimited ? (error.daily ? 'daily-limit' : 'rate-limit') : undefined;
+      c.errorKind = limitKind(error);
     });
     throw error;
   }

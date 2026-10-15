@@ -52,6 +52,8 @@ export interface SttProvider {
   note: string;
   /** How audio is split into requests; free tiers limit requests per minute, so fewer, longer chunks go further. */
   chunks: ChunkPolicy;
+  /** Chunking once billing is enabled and request limits no longer matter. */
+  paidChunks?: ChunkPolicy;
 }
 
 export const STT_PROVIDERS: Record<SttProviderId, SttProvider> = {
@@ -77,6 +79,8 @@ export const STT_PROVIDERS: Record<SttProviderId, SttProvider> = {
     // The free tier allows ~5 requests a minute and ~20 a day per model: send 2-5 min at a time
     // (silences under a minute stay in the chunk rather than costing a request of their own).
     chunks: { minMs: 120_000, maxMs: 300_000, longPauseMs: 60_000 },
+    // With billing, audio is charged by length, not per request: send it often so text appears quickly.
+    paidChunks: { minMs: 10_000, maxMs: 60_000, longPauseMs: 3_000 },
   },
   sarvam: {
     label: 'Sarvam AI',

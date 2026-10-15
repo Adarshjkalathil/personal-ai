@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { buildIcs, googleCalendarUrl } from './actions';
 import { Chunker, SAMPLE_RATE, encodeWav, type SpeechChunk } from './audio';
 import type { Conversation } from './db';
-import { ApiError, parseErrorBody, rateLimitListeners, request } from './http';
+import { ApiError, limitKind, parseErrorBody, rateLimitListeners, request } from './http';
 import { alternativeProviders, chat, parseJson, withProvider } from './llm';
-import { DEFAULT_SETTINGS, type Settings } from './settings';
+import { DEFAULT_SETTINGS, chunkPolicy, type Settings } from './settings';
 import { findByRef, searchConversations, tokenize } from './search';
 import { matchWakePhrase } from './session';
-import { GEMINI_FREE, geminiQuota, geminiUsage, nextPacificMidnight, paceDelay, pacificDay, resetPacing } from './quota';
+import { GEMINI_FREE, geminiQuota, geminiUsage, nextPacificMidnight, noteSent, paceDelay, pacificDay, resetPacing } from './quota';
 import { isExpectedLanguage, keepConfidentSegments, parseSpeakerLines } from './stt';
 
 function tone(seconds: number, amplitude: number): Float32Array {
@@ -343,5 +343,31 @@ describe('Gemini free-tier budget', () => {
     // Another model has its own budget.
     expect(paceDelay(geminiQuota('gemini-other'))).toBe(0);
     resetPacing();
+  });
+});
+
+describe('Gemini with billing enabled', () => {
+  it('skips pacing and uses short chunks', () => {
+    resetPacing();
+    const quota = geminiQuota('gemini-paid', true);
+    for (let i = 0; i < 50; i++) noteSent(quota);
+    expect(paceDelay(quota)).toBe(0);
+    resetPacing();
+    const gemini: Settings = { ...DEFAULT_SETTINGS, stt: { provider: 'gemini', model: 'gemini-3.6-flash', language: '' } };
+    expect(chunkPolicy(gemini).maxMs).toBe(300_000);
+    expect(chunkPolicy({ ...gemini, geminiBilling: true }).maxMs).toBe(60_000);
+    expect(chunkPolicy({ ...DEFAULT_SETTINGS, geminiBilling: true })).toEqual(chunkPolicy(DEFAULT_SETTINGS));
+  });
+
+  it('explains a used-up prepaid balance or spend cap (HTTP 402)', async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ error: { message: 'Payment required' } }), { status: 402 });
+    }) as typeof fetch;
+    const error = await request('Google Gemini', 'https://example.test', {}).catch((e: ApiError) => e);
+    expect(calls).toBe(1);
+    expect(limitKind(error)).toBe('no-credit');
+    expect((error as ApiError).message).toContain('spend cap');
   });
 });

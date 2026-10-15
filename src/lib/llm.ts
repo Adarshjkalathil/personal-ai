@@ -86,7 +86,7 @@ async function chatOnce(settings: Settings, messages: ChatMessage[], options: Ch
     },
     body: JSON.stringify(body),
     signal: options.signal,
-  }, { waitOnRateLimit, quota: settings.llm.provider === 'gemini' ? geminiQuota(settings.llm.model) : undefined });
+  }, { waitOnRateLimit, quota: settings.llm.provider === 'gemini' ? geminiQuota(settings.llm.model, settings.geminiBilling) : undefined });
   const json = (await response.json()) as {
     choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[];
   };

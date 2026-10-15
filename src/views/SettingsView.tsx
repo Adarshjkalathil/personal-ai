@@ -45,7 +45,7 @@ function ModelPicker({ value, onChange, load }: { value: string; onChange: (mode
 }
 
 /** Today's Gemini requests per model, counted on this device. */
-function GeminiUsage() {
+function GeminiUsage({ billing }: { billing: boolean }) {
   const [usage, setUsage] = useState(() => geminiUsage());
   useEffect(() => {
     const update = () => setUsage(geminiUsage());
@@ -58,8 +58,8 @@ function GeminiUsage() {
   return (
     <p className="muted small">
       Used today on this device:{' '}
-      {usage.map((u) => `${u.model} ${u.exhausted ? 'used up' : `${u.used} of ${u.limit}`}`).join(' · ')}. Resets at {resetTime()}.
-      Google counts all your devices and keys together, so check{' '}
+      {usage.map((u) => `${u.model} ${u.exhausted ? 'used up' : billing ? `${u.used} requests` : `${u.used} of ${u.limit}`}`).join(' · ')}.{' '}
+      {!billing && `Resets at ${resetTime()}. `}Google counts all your devices and keys together, so check{' '}
       <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noreferrer">
         your exact usage ↗
       </a>
@@ -84,7 +84,8 @@ function KeyField({ id, settings }: { id: KeyId; settings: Settings }) {
         )}
       </div>
       <p className="muted small">{info.free}</p>
-      {id === 'gemini' && <GeminiUsage />}
+        </>
+      )}
       <div className="model-picker">
         <input
           type="password"
@@ -113,6 +114,24 @@ function KeyField({ id, settings }: { id: KeyId; settings: Settings }) {
         )}
       </div>
       {status && <span className="small">{status}</span>}
+      {id === 'gemini' && (
+        <>
+          <GeminiUsage billing={settings.geminiBilling} />
+          <Toggle
+            label="Billing is enabled for this key (paid tier, e.g. Google AI Pro credits)"
+            checked={settings.geminiBilling}
+            onChange={(v) => updateSettings({ geminiBilling: v })}
+          />
+          {settings.geminiBilling && (
+            <p className="muted small">
+              No more free-tier pacing, and transcription text appears every 10–60 seconds. Usage is charged to your Google account, so set
+              a monthly spend cap on the <b>Spend</b> page in{' '}
+              <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">
+                AI Studio ↗
+              </a>{' '}
+              (or use prepay for a hard stop).
+            </p>
+          )}
     </div>
   );
 }
@@ -220,7 +239,7 @@ export function SettingsView() {
           />
           {settings.llm.provider === 'openrouter' && <span className="muted small">Free models end in “:free”. “openrouter/free” picks one for you.</span>}
           {!llm.jsonMode && <span className="muted small">Tip: pick a model that supports tool calling so Ask can take actions.</span>}
-          {settings.llm.provider === 'gemini' && settings.stt.provider === 'gemini' && settings.llm.model === settings.stt.model && (
+          {!settings.geminiBilling && settings.llm.provider === 'gemini' && settings.stt.provider === 'gemini' && settings.llm.model === settings.stt.model && (
             <span className="muted small">
               Transcription uses this model too, so they share its 20 free requests a day. Pick a different Gemini model here (each model
               has its own limit), or use Groq for the AI.

@@ -14,8 +14,10 @@ export interface Quota {
 
 export const GEMINI_FREE = { perMinute: 5, perDay: 20 };
 
-export function geminiQuota(model: string): Quota {
-  return { id: `gemini:${model.replace(/^models\//, '')}`, ...GEMINI_FREE };
+/** With billing enabled the limits are far higher, so requests are only counted, not paced. */
+export function geminiQuota(model: string, billing = false): Quota {
+  const limits = billing ? { perMinute: Infinity, perDay: Infinity } : GEMINI_FREE;
+  return { id: `gemini:${model.replace(/^models\//, '')}`, ...limits };
 }
 
 const PACIFIC = 'America/Los_Angeles';

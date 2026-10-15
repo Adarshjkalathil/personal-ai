@@ -1,5 +1,5 @@
 import { Component, Fragment, useEffect, useState, type ReactNode } from 'react';
-import { ApiError } from './lib/http';
+import type { LimitKind } from './lib/http';
 import { alternativeProviders } from './lib/llm';
 import { LLM_PROVIDERS, type LlmProviderId } from './lib/providers';
 import { updateSettings, useSettings } from './lib/settings';
@@ -132,13 +132,13 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export type LimitKind = 'rate-limit' | 'daily-limit';
+export { limitKind } from './lib/http';
 
-/** Whether an error was an AI provider's free-tier limit. */
-export function limitKind(error: unknown): LimitKind | undefined {
-  if (!(error instanceof ApiError) || !error.rateLimited) return undefined;
-  return error.daily ? 'daily-limit' : 'rate-limit';
-}
+const LIMIT_TEXT: Record<LimitKind, string> = {
+  'rate-limit': 'is busy right now (free-tier limit).',
+  'daily-limit': 'has used up its free requests for today.',
+  'no-credit': 'is out of credit, or you reached your spend cap.',
+};
 
 /**
  * Asks the user what to do when the AI provider hit its free limit: use another
@@ -158,7 +158,7 @@ export function BusyChoice({ kind, onRetry }: { kind: LimitKind | undefined; onR
   return (
     <div className="card busy-choice">
       <p>
-        <b>{current}</b> {kind === 'daily-limit' ? 'has used up its free requests for today.' : 'is busy right now (free-tier limit).'} What
+        <b>{current}</b> {LIMIT_TEXT[kind]} What
         would you like to do?
       </p>
       <div className="actions">

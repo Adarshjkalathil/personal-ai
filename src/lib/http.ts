@@ -13,6 +13,21 @@ export class ApiError extends Error {
   get rateLimited(): boolean {
     return this.status === 429;
   }
+
+  /** Prepaid credit or the spend cap is used up (HTTP 402). */
+  get outOfCredit(): boolean {
+    return this.status === 402;
+  }
+}
+
+export type LimitKind = 'rate-limit' | 'daily-limit' | 'no-credit';
+
+/** Whether an error was a provider's usage limit, and which kind. */
+export function limitKind(error: unknown): LimitKind | undefined {
+  if (!(error instanceof ApiError)) return undefined;
+  if (error.outOfCredit) return 'no-credit';
+  if (!error.rateLimited) return undefined;
+  return error.daily ? 'daily-limit' : 'rate-limit';
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,6 +88,11 @@ function friendly(provider: string, status: number, info: ErrorInfo, quota?: Quo
   if (status === 401 || status === 403) return `${provider} rejected the API key. Check it in Settings.`;
   if (status === 404) return `${provider} doesn't recognise that model or endpoint. Pick another model in Settings. (${info.detail})`;
   if (status === 413) return `${provider}: the request was too large.`;
+  if (status === 402) {
+    return /gemini/i.test(provider)
+      ? `${provider}: your prepaid credit or monthly spend cap is used up. Add credit or raise the cap on the Spend page in AI Studio, or use another provider.`
+      : `${provider}: your account is out of credit. Add credit with ${provider}, or use another provider.`;
+  }
   if (status === 429 && info.daily && quota) {
     const model = quota.id.split(':')[1];
     return `${provider}'s free daily limit for ${model} is used up. It resets at ${resetTime()} your time. Each Gemini model has its own daily limit, so another Gemini model in Settings may still work.`;

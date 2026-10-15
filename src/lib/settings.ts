@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { ChunkPolicy } from './audio';
 import {
   LLM_PROVIDERS,
   STT_PROVIDERS,
@@ -25,6 +26,8 @@ export interface Settings {
   liveHints: boolean;
   /** Browser notifications when a task is due. */
   reminders: boolean;
+  /** The Gemini key's project has billing (paid tier): skip the free-tier pacing and long chunks. */
+  geminiBilling: boolean;
 }
 
 const STORAGE_KEY = 'personal-ai.settings';
@@ -42,7 +45,14 @@ export const DEFAULT_SETTINGS: Settings = {
   speakReplies: true,
   liveHints: false,
   reminders: false,
+  geminiBilling: false,
 };
+
+/** How recorded audio is split into requests for the chosen transcription provider. */
+export function chunkPolicy(settings: Settings): ChunkPolicy {
+  const provider = STT_PROVIDERS[settings.stt.provider];
+  return provider.key === 'gemini' && settings.geminiBilling && provider.paidChunks ? provider.paidChunks : provider.chunks;
+}
 
 function load(): Settings {
   try {

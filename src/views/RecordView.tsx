@@ -57,7 +57,7 @@ export function RecordView() {
             {!llmIssue && ` · AI: ${LLM_PROVIDERS[settings.llm.provider].label}`}
           </span>
           {state.pending > 0 && <span className="muted">Transcribing {state.pending} chunk{state.pending > 1 ? 's' : ''}…</span>}
-          {recording && settings.stt.provider === 'gemini' && (
+          {recording && settings.stt.provider === 'gemini' && !settings.geminiBilling && (
             <span className="muted">Text appears every 2–5 minutes, so Gemini’s 20 free requests a day go further.</span>
           )}
           {recording && settings.voiceCommands && !llmIssue && (

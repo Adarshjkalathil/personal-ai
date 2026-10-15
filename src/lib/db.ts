@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { useEffect, useState } from 'react';
+import type { LimitKind } from './http';
 
 export interface Segment {
   id: string;
@@ -57,7 +58,7 @@ export interface Conversation {
   analysis?: Analysis;
   error?: string;
   /** Set when the error was a provider's rate limit, so the UI can offer other providers. */
-  errorKind?: 'rate-limit' | 'daily-limit';
+  errorKind?: LimitKind;
 }
 
 export interface Task {

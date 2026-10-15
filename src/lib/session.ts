@@ -8,9 +8,9 @@ import { analyzeConversation } from './analyze';
 import { liveHints, type LiveHint } from './assist';
 import { chunkFile, MicCapture, type SpeechChunk } from './audio';
 import { get, newId, patch, put, remove, type Conversation, type Segment } from './db';
-import { ApiError, rateLimitListeners } from './http';
-import { browserSpeechLanguage, STT_PROVIDERS, type LlmProviderId, type SttProviderId } from './providers';
-import { getSettings, llmProblem, sttProblem } from './settings';
+import { ApiError, limitKind, rateLimitListeners, type LimitKind } from './http';
+import { browserSpeechLanguage, type LlmProviderId, type SttProviderId } from './providers';
+import { chunkPolicy, getSettings, llmProblem, sttProblem } from './settings';
 import { transcribe, type TranscribedLine } from './stt';
 
 export interface CommandResult {
@@ -18,7 +18,7 @@ export interface CommandResult {
   reply?: AgentReply;
   error?: string;
   /** The AI provider was rate-limited; the user can pick another one. */
-  limit?: 'rate-limit' | 'daily-limit';
+  limit?: LimitKind;
   at: number;
 }
 
@@ -112,7 +112,7 @@ class Session {
     try {
       if (settings.stt.provider === 'browser') this.startBrowserSpeech();
       else {
-        this.mic = new MicCapture((chunk) => this.enqueue(chunk, 'mic'), STT_PROVIDERS[settings.stt.provider].chunks);
+        this.mic = new MicCapture((chunk) => this.enqueue(chunk, 'mic'), chunkPolicy(settings));
         await this.mic.start();
         this.timers.push(window.setInterval(() => this.set({ level: this.mic?.chunker.level ?? 0 }), 100));
       }
@@ -175,7 +175,7 @@ class Session {
       await this.addLines(job.conversationId, lines, job.chunk.start, job.chunk.start + job.chunk.durationMs);
     } catch (error) {
       this.hold(job);
-      if (error instanceof ApiError && error.daily) this.exhausted = settings.stt.provider;
+      if (error instanceof ApiError && (error.daily || error.outOfCredit)) this.exhausted = settings.stt.provider;
       this.set({ error: (error as Error).message, notice: undefined });
     }
   }
@@ -339,7 +339,7 @@ class Session {
       this.set({ command: { command, reply, at } });
       if (getSettings().speakReplies && reply.text) speak(reply.text);
     } catch (error) {
-      const limit = error instanceof ApiError && error.rateLimited ? (error.daily ? 'daily-limit' : 'rate-limit') : undefined;
+      const limit = limitKind(error);
       this.set({ command: { command, error: (error as Error).message, limit, at } });
     }
   }
@@ -375,7 +375,7 @@ class Session {
     const startedAt = file.lastModified || Date.now();
     const conversation: Conversation = { id: newId(), startedAt, endedAt: startedAt, source: 'upload', fileName: file.name, status: 'recording', segments: [] };
     try {
-      const chunks = await chunkFile(file, startedAt, STT_PROVIDERS[settings.stt.provider].chunks);
+      const chunks = await chunkFile(file, startedAt, chunkPolicy(settings));
       if (!chunks.length) throw new Error('No speech was found in that file.');
       await put('conversations', conversation);
       this.set({ upload: { name: file.name, done: 0, total: chunks.length } });
