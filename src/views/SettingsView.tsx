@@ -84,8 +84,6 @@ function KeyField({ id, settings }: { id: KeyId; settings: Settings }) {
         )}
       </div>
       <p className="muted small">{info.free}</p>
-        </>
-      )}
       <div className="model-picker">
         <input
           type="password"
@@ -132,6 +130,8 @@ function KeyField({ id, settings }: { id: KeyId; settings: Settings }) {
               (or use prepay for a hard stop).
             </p>
           )}
+        </>
+      )}
     </div>
   );
 }
