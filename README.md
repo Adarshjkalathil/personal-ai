@@ -74,11 +74,17 @@ and Gemini). When one provider hits its free limit, the app asks whether to use 
 
 | If you want… | Use | Get a free key |
 |---|---|---|
-| Speaker labels (who said what) and better Hindi | **Google Gemini** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| Speaker labels (who said what) and better Indian languages | **Google Gemini** (only about 20 requests a day per model) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | The best accuracy for Indian languages | **Sarvam AI** (small free credit, then paid) | [dashboard.sarvam.ai](https://dashboard.sarvam.ai) |
 | More AI model choices | **OpenRouter** | [openrouter.ai/keys](https://openrouter.ai/keys) |
 | Another free AI option | **Mistral** | [console.mistral.ai](https://console.mistral.ai/api-keys) |
 | Total privacy, nothing leaves your computer | **Ollama** on your own computer, as the *Custom* provider | [ollama.com](https://ollama.com) |
+
+> **About Gemini's free limits:** Google allows about **5 requests a minute and 20 a day for each model**. The app
+> paces itself and sends 2–5 minutes of speech per request, so Gemini transcription covers roughly 40–100 minutes of
+> talk a day. To make it last: use **Groq for the AI** (summaries and Ask) so all of Gemini's requests go to
+> transcription, or pick a *different* Gemini model for each (every model has its own 20). **Settings** shows how many
+> you've used today; [aistudio.google.com/rate-limit](https://aistudio.google.com/rate-limit) shows Google's exact count.
 
 > **Speaking an Indian language?** In **Settings → Transcription → Language**, pick your language instead of
 > *Auto-detect*. Accuracy improves.
@@ -92,8 +98,8 @@ and Gemini). When one provider hits its free limit, the app asks whether to use 
 | The record button is greyed out | You haven't added a key yet. Go to **Settings** and paste your Groq key. |
 | “Microphone permission was denied” | Click the 🔒 lock icon next to the web address, allow the **Microphone**, and reload the page. |
 | “Rejected the API key” | The key was copied wrong. Copy it again (no spaces) or create a new one. |
-| “Free-tier limit” or “daily limit is used up” | Free plans allow only so many requests per minute and per day. Your audio isn't lost: it's saved, and a **Retry** button appears on the Record tab. Wait a minute (or until tomorrow for a daily limit), or add a second free key (for example Groq) in Settings, switch to it, and tap **Retry**. |
-| Gemini text appears slowly | That's on purpose. Gemini's free plan allows very few requests a minute, so the app sends 30 seconds to 2 minutes of speech at a time. Groq is faster. |
+| “Free-tier limit” or “daily limit is used up” | Free plans allow only so many requests per minute and per day. Your audio isn't lost: it's saved, and a **Retry** button appears on the Record tab. Wait a minute, or for a daily limit until it resets (Gemini resets at midnight US Pacific time, about 12:30 PM in India, 1:30 PM in winter). Or add a second free key (for example Groq) in Settings, switch to it, and tap **Retry**. |
+| Gemini text appears slowly | That's on purpose. Gemini's free plan allows only about 20 requests a day, so the app sends 2–5 minutes of speech at a time. Groq is faster. |
 | The text is gibberish or in the wrong language | Choose your **Spoken language** on the Record tab instead of Auto-detect. Groq's Whisper is weak at Malayalam, Tamil, Telugu, Kannada and some other Indian languages. For those, switch transcription to **Google Gemini** or **Sarvam AI** in Settings. |
 | Recording stops on my phone | Keep the app open on screen. Phones pause web pages in the background. |
 | Nothing is summarized | Summaries need a key for the AI too. A Groq key covers both. |

@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Notice, Section } from '../components';
 import { download } from '../lib/actions';
 import { clearAll, exportAll, importAll, type Backup } from '../lib/db';
 import { listModels } from '../lib/llm';
 import { KEYS, LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS, type KeyId, type LlmProviderId, type SttProviderId } from '../lib/providers';
+import { geminiUsage, resetTime, usageListeners } from '../lib/quota';
 import { enableReminders } from '../lib/reminders';
 import { updateSettings, useSettings, type Settings } from '../lib/settings';
 import { localDay } from '../lib/time';
@@ -43,6 +44,30 @@ function ModelPicker({ value, onChange, load }: { value: string; onChange: (mode
   );
 }
 
+/** Today's Gemini requests per model, counted on this device. */
+function GeminiUsage() {
+  const [usage, setUsage] = useState(() => geminiUsage());
+  useEffect(() => {
+    const update = () => setUsage(geminiUsage());
+    usageListeners.add(update);
+    return () => {
+      usageListeners.delete(update);
+    };
+  }, []);
+  if (!usage.length) return null;
+  return (
+    <p className="muted small">
+      Used today on this device:{' '}
+      {usage.map((u) => `${u.model} ${u.exhausted ? 'used up' : `${u.used} of ${u.limit}`}`).join(' · ')}. Resets at {resetTime()}.
+      Google counts all your devices and keys together, so check{' '}
+      <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noreferrer">
+        your exact usage ↗
+      </a>
+      .
+    </p>
+  );
+}
+
 function KeyField({ id, settings }: { id: KeyId; settings: Settings }) {
   const info = KEYS[id];
   const [status, setStatus] = useState('');
@@ -59,6 +84,7 @@ function KeyField({ id, settings }: { id: KeyId; settings: Settings }) {
         )}
       </div>
       <p className="muted small">{info.free}</p>
+      {id === 'gemini' && <GeminiUsage />}
       <div className="model-picker">
         <input
           type="password"
@@ -194,6 +220,12 @@ export function SettingsView() {
           />
           {settings.llm.provider === 'openrouter' && <span className="muted small">Free models end in “:free”. “openrouter/free” picks one for you.</span>}
           {!llm.jsonMode && <span className="muted small">Tip: pick a model that supports tool calling so Ask can take actions.</span>}
+          {settings.llm.provider === 'gemini' && settings.stt.provider === 'gemini' && settings.llm.model === settings.stt.model && (
+            <span className="muted small">
+              Transcription uses this model too, so they share its 20 free requests a day. Pick a different Gemini model here (each model
+              has its own limit), or use Groq for the AI.
+            </span>
+          )}
         </label>
         <label>
           Write summaries and answers in

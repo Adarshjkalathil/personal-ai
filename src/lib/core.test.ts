@@ -7,6 +7,7 @@ import { alternativeProviders, chat, parseJson, withProvider } from './llm';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { findByRef, searchConversations, tokenize } from './search';
 import { matchWakePhrase } from './session';
+import { GEMINI_FREE, geminiQuota, geminiUsage, nextPacificMidnight, paceDelay, pacificDay, resetPacing } from './quota';
 import { isExpectedLanguage, keepConfidentSegments, parseSpeakerLines } from './stt';
 
 function tone(seconds: number, amplitude: number): Float32Array {
@@ -306,5 +307,41 @@ describe('busy AI provider', () => {
   it('offers only providers the user has keys for', () => {
     expect(alternativeProviders(settingsWith({ gemini: 'g' }))).toEqual([]);
     expect(alternativeProviders(settingsWith({ gemini: 'g', mistral: 'm', groq: 'q' }))).toEqual(['groq', 'mistral']);
+  });
+});
+
+describe('Gemini free-tier budget', () => {
+  it('finds when daily quotas reset (midnight Pacific)', () => {
+    // 8:38 PM IST on 15 Oct = 8:08 AM Pacific (PDT): resets 16 Oct 07:00 UTC.
+    const october = Date.UTC(2026, 9, 15, 15, 8);
+    expect(pacificDay(october)).toBe('2026-10-15');
+    expect(nextPacificMidnight(october)).toBe(Date.UTC(2026, 9, 16, 7));
+    // Winter (PST): 04:00 Pacific on 10 Jan resets 11 Jan 08:00 UTC.
+    expect(nextPacificMidnight(Date.UTC(2026, 0, 10, 12))).toBe(Date.UTC(2026, 0, 11, 8));
+  });
+
+  it('paces requests to the per-minute limit and counts successes per model', async () => {
+    const store = new Map<string, string>();
+    globalThis.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    } as Storage;
+    resetPacing();
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    const quota = geminiQuota('models/gemini-test');
+    for (let i = 0; i < GEMINI_FREE.perMinute; i++) await request('Gemini', 'https://example.test', {}, { quota });
+    expect(paceDelay(quota)).toBeGreaterThan(0);
+    const error = await request('Gemini', 'https://example.test', {}, { quota, waitOnRateLimit: false }).catch((e: ApiError) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).rateLimited).toBe(true);
+    expect(calls).toBe(GEMINI_FREE.perMinute);
+    expect(geminiUsage()).toEqual([{ model: 'gemini-test', used: GEMINI_FREE.perMinute, limit: GEMINI_FREE.perDay, exhausted: false }]);
+    // Another model has its own budget.
+    expect(paceDelay(geminiQuota('gemini-other'))).toBe(0);
+    resetPacing();
   });
 });

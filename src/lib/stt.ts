@@ -1,6 +1,7 @@
 import { encodeWav, type SpeechChunk } from './audio';
 import { blobToBase64, request } from './http';
 import { LANGUAGES, whisperLanguage } from './providers';
+import { geminiQuota } from './quota';
 import { sttKey, type Settings } from './settings';
 
 export interface TranscribedLine {
@@ -121,7 +122,7 @@ async function gemini(wav: Blob, settings: Settings, context: TranscribeContext)
       contents: [{ parts: [{ inline_data: { mime_type: 'audio/wav', data: await blobToBase64(wav) } }, { text: prompt }] }],
       generationConfig: { temperature: 0 },
     }),
-  });
+  }, { quota: geminiQuota(model) });
   const json = (await response.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
   return parseSpeakerLines(text);

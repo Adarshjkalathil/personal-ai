@@ -22,7 +22,7 @@ export const KEYS: Record<KeyId, KeyInfo> = {
   gemini: {
     label: 'Google Gemini',
     signupUrl: 'https://aistudio.google.com/apikey',
-    free: 'Free, no card. Transcription with speaker labels, plus chat. On the free tier Google may use your data to improve its products.',
+    free: 'Free, no card, but only about 5 requests a minute and 20 a day for each model. Transcription with speaker labels, plus chat. On the free tier Google may use your data to improve its products.',
   },
   sarvam: {
     label: 'Sarvam AI',
@@ -73,9 +73,10 @@ export const STT_PROVIDERS: Record<SttProviderId, SttProvider> = {
     label: 'Google Gemini',
     key: 'gemini',
     defaultModel: 'gemini-3.6-flash',
-    note: 'Free. Labels speakers (Speaker 1, Speaker 2…). Good for Hindi and mixed Hindi-English. The free tier allows only a few requests a minute, so audio is sent in longer pieces and text appears less often.',
-    // The free tier allows only a handful of requests per minute: send ~30-120 s at a time.
-    chunks: { minMs: 30_000, maxMs: 120_000, longPauseMs: 8_000 },
+    note: 'Free. Labels speakers (Speaker 1, Speaker 2…). Good for Indian languages and mixed Hindi-English. The free tier allows only about 20 requests a day per model, so audio is sent 2–5 minutes at a time and text appears less often. That covers about 40–100 minutes of talk a day.',
+    // The free tier allows ~5 requests a minute and ~20 a day per model: send 2-5 min at a time
+    // (silences under a minute stay in the chunk rather than costing a request of their own).
+    chunks: { minMs: 120_000, maxMs: 300_000, longPauseMs: 60_000 },
   },
   sarvam: {
     label: 'Sarvam AI',

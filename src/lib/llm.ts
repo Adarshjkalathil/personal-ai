@@ -1,4 +1,5 @@
 import { request } from './http';
+import { geminiQuota } from './quota';
 import { LLM_PROVIDERS, type KeyId, type LlmProviderId } from './providers';
 import { llmKey, type Settings } from './settings';
 
@@ -85,7 +86,7 @@ async function chatOnce(settings: Settings, messages: ChatMessage[], options: Ch
     },
     body: JSON.stringify(body),
     signal: options.signal,
-  }, 3, waitOnRateLimit);
+  }, { waitOnRateLimit, quota: settings.llm.provider === 'gemini' ? geminiQuota(settings.llm.model) : undefined });
   const json = (await response.json()) as {
     choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[];
   };

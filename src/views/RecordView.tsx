@@ -58,7 +58,7 @@ export function RecordView() {
           </span>
           {state.pending > 0 && <span className="muted">Transcribing {state.pending} chunk{state.pending > 1 ? 's' : ''}…</span>}
           {recording && settings.stt.provider === 'gemini' && (
-            <span className="muted">Text appears about every 30 s–2 min, to stay within Gemini’s free limits.</span>
+            <span className="muted">Text appears every 2–5 minutes, so Gemini’s 20 free requests a day go further.</span>
           )}
           {recording && settings.voiceCommands && !llmIssue && (
             <span className="muted">Say “{settings.wakePhrase}, …” to give a command.</span>

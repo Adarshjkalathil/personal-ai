@@ -1,3 +1,5 @@
+import { noteExhausted, noteSent, noteSuccess, paceDelay, resetTime, type Quota } from './quota';
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -67,25 +69,48 @@ export function parseErrorBody(body: string, retryAfterHeader: string | null, st
   return { detail, retryAfterMs, daily };
 }
 
-function friendly(provider: string, status: number, info: ErrorInfo): string {
+function friendly(provider: string, status: number, info: ErrorInfo, quota?: Quota): string {
   if (status === 401 || status === 403) return `${provider} rejected the API key. Check it in Settings.`;
   if (status === 404) return `${provider} doesn't recognise that model or endpoint. Pick another model in Settings. (${info.detail})`;
   if (status === 413) return `${provider}: the request was too large.`;
+  if (status === 429 && info.daily && quota) {
+    const model = quota.id.split(':')[1];
+    return `${provider}'s free daily limit for ${model} is used up. It resets at ${resetTime()} your time. Each Gemini model has its own daily limit, so another Gemini model in Settings may still work.`;
+  }
   if (status === 429 && info.daily) {
-    return `${provider}'s free daily limit is used up (it resets tomorrow). Switch to another provider in Settings to keep going.`;
+    return `${provider}'s free daily limit is used up (it resets within a day). Use another provider in Settings to keep going.`;
   }
   if (status === 429) return `${provider} is getting too many requests per minute on the free tier. Wait a minute, or switch provider in Settings.`;
   return `${provider} error ${status}: ${info.detail}`;
 }
 
+export interface RequestOptions {
+  retries?: number;
+  /** false: fail at once on a rate limit (the caller can offer another provider). */
+  waitOnRateLimit?: boolean;
+  /** A known free-tier budget: requests are paced to fit it and counted. */
+  quota?: Quota;
+}
+
 /**
  * fetch() that waits out rate limits for as long as the provider asks (up to 90 s),
  * retries server errors with backoff, gives up at once on daily limits, and turns
- * failures into readable messages. Pass waitOnRateLimit=false to fail fast on 429
- * (when the caller has another provider to try).
+ * failures into readable messages. With a quota, requests are spaced so they never
+ * exceed its per-minute limit in the first place.
  */
-export async function request(provider: string, url: string, init: RequestInit, retries = 3, waitOnRateLimit = true): Promise<Response> {
+export async function request(provider: string, url: string, init: RequestInit, options: RequestOptions = {}): Promise<Response> {
+  const { retries = 3, waitOnRateLimit = true, quota } = options;
   for (let attempt = 0; ; attempt++) {
+    if (quota) {
+      for (let delay = paceDelay(quota); delay > 0; delay = paceDelay(quota)) {
+        if (!waitOnRateLimit) {
+          throw new ApiError(`${provider} allows only ${quota.perMinute} requests a minute on the free tier, and they're used up for now.`, 429);
+        }
+        rateLimitListeners.forEach((listener) => listener(provider, delay));
+        await sleep(delay);
+      }
+      noteSent(quota);
+    }
     let response: Response;
     try {
       response = await fetch(url, init);
@@ -95,9 +120,13 @@ export async function request(provider: string, url: string, init: RequestInit, 
       await sleep(1000 * 2 ** attempt);
       continue;
     }
-    if (response.ok) return response;
+    if (response.ok) {
+      if (quota) noteSuccess(quota);
+      return response;
+    }
 
     const info = parseErrorBody(await response.text().catch(() => ''), response.headers.get('retry-after'), response.statusText);
+    if (quota && response.status === 429 && info.daily) noteExhausted(quota);
     if (response.status === 429 && !info.daily && waitOnRateLimit && attempt < retries) {
       const wait = (info.retryAfterMs ?? 5000 * 2 ** attempt) + 500;
       if (wait <= MAX_WAIT_MS) {
@@ -110,7 +139,7 @@ export async function request(provider: string, url: string, init: RequestInit, 
       await sleep(2000 * 2 ** attempt);
       continue;
     }
-    throw new ApiError(friendly(provider, response.status, info), response.status, response.status === 429 && info.daily);
+    throw new ApiError(friendly(provider, response.status, info, quota), response.status, response.status === 429 && info.daily);
   }
 }
 
