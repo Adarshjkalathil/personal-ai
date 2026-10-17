@@ -1,6 +1,7 @@
-import { AudioLines, Mic, Square, Upload, X } from 'lucide-react';
+import { AudioLines, Mic, MonitorSpeaker, Square, Upload, X } from 'lucide-react';
 import { useRef, type CSSProperties } from 'react';
 import { BackupReminder, BusyChoice, Notice, Stats, navigate } from '../components';
+import { supportsDeviceAudio } from '../lib/audio';
 import { useList, speakerName } from '../lib/db';
 import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
 import { session, useSession } from '../lib/session';
@@ -29,6 +30,8 @@ export function RecordView() {
   const recording = state.mode === 'recording';
   const busy = state.mode === 'starting' || state.mode === 'stopping';
   const sttIssue = sttProblem(settings);
+  // Browser speech recognition only ever listens to the microphone.
+  const canShareAudio = supportsDeviceAudio() && settings.stt.provider !== 'browser';
   const llmIssue = llmProblem(settings);
 
   const today = conversations?.filter((c) => localDay(new Date(c.startedAt)) === localDay()) ?? [];
@@ -71,6 +74,11 @@ export function RecordView() {
               {STT_PROVIDERS[settings.stt.provider].label}
               {!llmIssue && ` · AI: ${LLM_PROVIDERS[settings.llm.provider].label}`}
             </span>
+            {state.deviceAudio === 'on' && (
+              <span className="pill pill-mint">
+                <MonitorSpeaker size={13} /> Computer audio included
+              </span>
+            )}
             {state.pending > 0 && (
               <span className="pill pill-sky">
                 Transcribing {state.pending} chunk{state.pending > 1 ? 's' : ''}…
@@ -89,6 +97,31 @@ export function RecordView() {
             ))}
           </select>
         </label>
+        {canShareAudio ? (
+          <label className="toggle device-audio">
+            <input
+              type="checkbox"
+              checked={settings.deviceAudio}
+              disabled={state.mode !== 'idle'}
+              onChange={(e) => updateSettings({ deviceAudio: e.target.checked })}
+            />
+            <span>
+              Include computer audio
+              <span className="muted small"> (Meet, WhatsApp, Zoom calls)</span>
+            </span>
+          </label>
+        ) : (
+          !supportsDeviceAudio() && (
+            <p className="muted small">Recording a call? Put it on speaker. Phones don’t let web apps record other apps’ sound.</p>
+          )
+        )}
+        {canShareAudio && settings.deviceAudio && state.mode === 'idle' && (
+          <p className="muted small share-help">
+            After you tap record, choose what to share: the <b>Meet tab</b> with <b>Share tab audio</b> on, or <b>Entire screen</b> with{' '}
+            <b>Share system audio</b> on (Windows; needed for the WhatsApp and Zoom apps). Wear headphones so the other side isn’t
+            recorded twice.
+          </p>
+        )}
         {!settings.stt.language && settings.stt.provider !== 'browser' && (
           <p className="muted small">Auto-detect can guess wrong. Choosing your language gives much better text.</p>
         )}
@@ -121,6 +154,9 @@ export function RecordView() {
         </Notice>
       )}
 
+      {state.deviceAudio === 'stopped' && recording && (
+        <Notice kind="warn">Computer audio sharing was stopped. Still recording your microphone; stop and start again to share the call’s sound.</Notice>
+      )}
       {state.notice && <Notice>⏳ {state.notice}</Notice>}
       {state.error && <Notice kind="error">{state.error}</Notice>}
       {state.held.count > 0 && (

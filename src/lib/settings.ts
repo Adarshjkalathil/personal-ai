@@ -30,6 +30,8 @@ export interface Settings {
   geminiBilling: boolean;
   /** The welcome guide was completed or skipped. */
   onboarded: boolean;
+  /** Mix in a shared tab's or the computer's sound while recording (for calls). */
+  deviceAudio: boolean;
   /** Colour theme; "system" follows the device. */
   theme: 'light' | 'dark' | 'system';
 }
@@ -52,6 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   geminiBilling: false,
   onboarded: false,
   theme: 'light',
+  deviceAudio: false,
 };
 
 /** How recorded audio is split into requests for the chosen transcription provider. */

@@ -161,8 +161,50 @@ class Resampler {
   }
 }
 
+/**
+ * Whether this browser can share another tab's or the computer's audio (calls in Meet, WhatsApp, Zoom).
+ * Phone browsers can't: Android and iOS don't let web pages capture other apps' sound.
+ */
+export function supportsDeviceAudio(): boolean {
+  return !!navigator.mediaDevices?.getDisplayMedia && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+}
+
+export interface CaptureOptions {
+  /** Also record the sound of a shared tab or the whole computer, mixed with the microphone. */
+  deviceAudio?: boolean;
+  /** The user stopped sharing (from the browser's "Stop sharing" bar). */
+  onDeviceAudioEnded?: () => void;
+}
+
+/** Asks the user to share a tab or screen with audio, and returns just its sound. */
+async function shareDeviceAudio(): Promise<MediaStream> {
+  let display: MediaStream;
+  try {
+    // Chrome needs video to show the picker; these hints offer tab and system audio.
+    const options = {
+      video: true,
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      systemAudio: 'include',
+      selfBrowserSurface: 'exclude',
+    } as DisplayMediaStreamOptions;
+    display = await navigator.mediaDevices.getDisplayMedia(options);
+  } catch {
+    throw new Error(
+      'Sharing was cancelled, so the call’s audio can’t be recorded. Press record again and choose the call, or turn off “Include computer audio”.',
+    );
+  }
+  if (!display.getAudioTracks().length) {
+    display.getTracks().forEach((track) => track.stop());
+    throw new Error(
+      'No sound was shared. Press record again and choose the Meet tab with “Share tab audio” on, or Entire screen with “Share system audio” on.',
+    );
+  }
+  return display;
+}
+
 export class MicCapture {
   private stream?: MediaStream;
+  private display?: MediaStream;
   private context?: AudioContext;
   private node?: AudioWorkletNode;
   readonly chunker: Chunker;
@@ -171,23 +213,40 @@ export class MicCapture {
     this.chunker = new Chunker(onChunk, Date.now(), policy);
   }
 
-  async start(): Promise<void> {
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
+  async start(options: CaptureOptions = {}): Promise<void> {
+    // The share picker must open straight from the tap, before the microphone prompt.
+    if (options.deviceAudio) this.display = await shareDeviceAudio();
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch (error) {
+      this.display?.getTracks().forEach((track) => track.stop());
+      throw error;
+    }
     this.context = new AudioContext();
     await this.context.audioWorklet.addModule(`${import.meta.env.BASE_URL}capture-worklet.js`);
-    const source = this.context.createMediaStreamSource(this.stream);
-    this.node = new AudioWorkletNode(this.context, 'capture-processor');
+    // Mono input: the microphone and the shared sound are mixed together here.
+    this.node = new AudioWorkletNode(this.context, 'capture-processor', {
+      channelCount: 1,
+      channelCountMode: 'explicit',
+      channelInterpretation: 'speakers',
+    });
     const resampler = new Resampler(this.context.sampleRate / SAMPLE_RATE);
     this.node.port.onmessage = (event: MessageEvent<Float32Array>) => this.chunker.push(resampler.process(event.data));
-    source.connect(this.node);
+    this.context.createMediaStreamSource(this.stream).connect(this.node);
+    if (this.display) {
+      const tracks = this.display.getAudioTracks();
+      this.context.createMediaStreamSource(new MediaStream(tracks)).connect(this.node);
+      tracks[0].addEventListener('ended', () => options.onDeviceAudioEnded?.());
+    }
   }
 
   async stop(): Promise<void> {
     this.node?.port.close();
     this.node?.disconnect();
     this.stream?.getTracks().forEach((track) => track.stop());
+    this.display?.getTracks().forEach((track) => track.stop());
     await this.context?.close();
     this.chunker.flush();
   }

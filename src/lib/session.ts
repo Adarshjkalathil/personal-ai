@@ -6,7 +6,7 @@ import { speak } from './actions';
 import { runAgent, type AgentReply } from './agent';
 import { analyzeConversation } from './analyze';
 import { liveHints, type LiveHint } from './assist';
-import { chunkFile, MicCapture, type SpeechChunk } from './audio';
+import { chunkFile, MicCapture, supportsDeviceAudio, type SpeechChunk } from './audio';
 import { deleteAudio, get, list, listAudio, newId, patch, put, remove, saveAudio, type Conversation, type Segment } from './db';
 import { ApiError, limitKind, rateLimitListeners, type LimitKind } from './http';
 import { browserSpeechLanguage, type LlmProviderId, type SttProviderId } from './providers';
@@ -36,6 +36,8 @@ export interface SessionState {
   held: { count: number; ms: number };
   /** Temporary status, e.g. waiting out a rate limit. */
   notice?: string;
+  /** Computer or tab audio is being recorded too ("on"), or sharing was stopped mid-recording. */
+  deviceAudio?: 'on' | 'stopped';
   hints: LiveHint[];
   command?: CommandResult;
   error?: string;
@@ -111,13 +113,18 @@ class Session {
       this.set({ error: problem });
       return;
     }
-    this.set({ mode: 'starting', error: undefined, hints: [], command: undefined, interim: '' });
+    this.set({ mode: 'starting', error: undefined, hints: [], command: undefined, interim: '', deviceAudio: undefined });
     void persistStorage();
     try {
       if (settings.stt.provider === 'browser') this.startBrowserSpeech();
       else {
         this.mic = new MicCapture((chunk) => this.enqueue(chunk, 'mic'), chunkPolicy(settings));
-        await this.mic.start();
+        const deviceAudio = settings.deviceAudio && supportsDeviceAudio();
+        await this.mic.start({
+          deviceAudio,
+          onDeviceAudioEnded: () => this.state.mode === 'recording' && this.set({ deviceAudio: 'stopped' }),
+        });
+        if (deviceAudio) this.set({ deviceAudio: 'on' });
         this.timers.push(window.setInterval(() => this.set({ level: this.mic?.chunker.level ?? 0 }), 100));
       }
       this.timers.push(window.setInterval(() => this.checkConversationGap(), 10_000));
@@ -135,7 +142,7 @@ class Session {
     await this.cleanup();
     await this.queue;
     if (this.state.conversationId) await this.finish(this.state.conversationId);
-    this.set({ mode: 'idle', level: 0, interim: '' });
+    this.set({ mode: 'idle', level: 0, interim: '', deviceAudio: undefined });
   }
 
   private async cleanup() {

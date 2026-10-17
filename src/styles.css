@@ -1139,6 +1139,22 @@ button.card:hover {
   flex: 1;
 }
 
+.device-audio {
+  margin-top: 0.6rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.share-help {
+  margin: 0.2rem 0 0;
+}
+
+.record-status .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 .record-extra {
   margin-top: 0.4rem;
 }

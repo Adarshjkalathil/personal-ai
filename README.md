@@ -64,6 +64,20 @@ Later you can change keys in **⚙️ Settings** (under **More** on a phone, at 
 
 **Voice commands:** while recording, say *“Hey assistant, remind me to buy milk at 6”*. It adds the task and answers out loud.
 
+**Recording calls (Google Meet, WhatsApp, Zoom):**
+
+- **On a computer:** on the Record tab, turn on **Include computer audio**, then tap record. Your browser asks what to
+  share:
+  - For a call in **Google Meet** (or any call in a browser tab), choose that **tab** and make sure **Share tab audio** is on.
+  - For the **WhatsApp** or **Zoom** desktop apps, choose **Entire screen** and turn on **Share system audio**. This
+    works on Windows in Chrome or Edge. On a Mac, browsers can usually only share a tab's audio.
+
+  Both your voice and the other people's voices are written down. Wear headphones so the other side isn't recorded
+  twice. Use Chrome or Edge on a computer; this doesn't work in Browser speech recognition mode.
+- **On a phone:** put the call on **speaker** and record as usual. Phones don't let web apps (or most apps) record
+  another app's call audio.
+- **Tell the other people you're recording.** In many places it's required by law.
+
 **Install it like an app:** on your phone, open the menu in Chrome and tap **Add to Home screen**. On iPhone, use the
 Share button in Safari, then **Add to Home Screen**.
 
