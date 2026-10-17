@@ -9,6 +9,7 @@ import { findByRef, searchConversations, tokenize } from './search';
 import { matchWakePhrase } from './session';
 import { GEMINI_FREE, geminiQuota, geminiUsage, nextPacificMidnight, noteSent, paceDelay, pacificDay, resetPacing } from './quota';
 import { isExpectedLanguage, keepConfidentSegments, parseSpeakerLines } from './stt';
+import { backupDue, daysAgo, snoozeBackupReminder } from './storage';
 
 function tone(seconds: number, amplitude: number): Float32Array {
   const samples = new Float32Array(Math.round(seconds * SAMPLE_RATE));
@@ -369,5 +370,34 @@ describe('Gemini with billing enabled', () => {
     expect(calls).toBe(1);
     expect(limitKind(error)).toBe('no-credit');
     expect((error as ApiError).message).toContain('spend cap');
+  });
+});
+
+describe('backup reminder', () => {
+  it('reminds once there are a few conversations and no recent backup, and can be snoozed', () => {
+    const store = new Map<string, string>();
+    globalThis.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    } as Storage;
+    const day = 86_400_000;
+    const now = Date.now();
+    expect(backupDue(2, now)).toBe(false); // too little to lose yet
+    expect(backupDue(3, now)).toBe(true); // never backed up
+    store.set('personal-ai.lastBackup', String(now - 3 * day));
+    expect(backupDue(10, now)).toBe(false);
+    store.set('personal-ai.lastBackup', String(now - 8 * day));
+    expect(backupDue(10, now)).toBe(true);
+    snoozeBackupReminder(3);
+    expect(backupDue(10, now)).toBe(false);
+    expect(backupDue(10, now + 4 * day)).toBe(true);
+  });
+
+  it('describes how long ago a backup was', () => {
+    const now = Date.UTC(2026, 9, 17, 12);
+    expect(daysAgo(0, now)).toBe('never');
+    expect(daysAgo(now - 3_600_000, now)).toBe('today');
+    expect(daysAgo(now - 86_400_000, now)).toBe('yesterday');
+    expect(daysAgo(now - 12 * 86_400_000, now)).toBe('12 days ago');
   });
 });

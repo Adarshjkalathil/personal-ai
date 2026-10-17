@@ -28,6 +28,8 @@ export interface Settings {
   reminders: boolean;
   /** The Gemini key's project has billing (paid tier): skip the free-tier pacing and long chunks. */
   geminiBilling: boolean;
+  /** The welcome guide was completed or skipped. */
+  onboarded: boolean;
 }
 
 const STORAGE_KEY = 'personal-ai.settings';
@@ -46,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   liveHints: false,
   reminders: false,
   geminiBilling: false,
+  onboarded: false,
 };
 
 /** How recorded audio is split into requests for the chosen transcription provider. */
@@ -63,6 +66,8 @@ function load(): Settings {
       keys: { ...DEFAULT_SETTINGS.keys, ...saved.keys },
       stt: { ...DEFAULT_SETTINGS.stt, ...saved.stt },
       llm: { ...DEFAULT_SETTINGS.llm, ...saved.llm },
+      // People who set up the app before the welcome guide existed don't need it.
+      onboarded: saved.onboarded ?? (Object.values(saved.keys ?? {}).some(Boolean) || saved.stt?.provider === 'browser'),
     };
   } catch {
     return DEFAULT_SETTINGS;

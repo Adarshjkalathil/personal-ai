@@ -1,7 +1,7 @@
 {
   "name": "personal-ai",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Browser-based AI memory assistant: record conversations, transcribe, summarize, and ask questions using free API keys.",
   "license": "UNLICENSED",
   "type": "module",

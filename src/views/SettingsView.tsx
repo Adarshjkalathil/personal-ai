@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Notice, Section } from '../components';
-import { download } from '../lib/actions';
-import { clearAll, exportAll, importAll, type Backup } from '../lib/db';
+import { clearAll, importAll, type Backup } from '../lib/db';
 import { listModels } from '../lib/llm';
 import { KEYS, LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS, type KeyId, type LlmProviderId, type SttProviderId } from '../lib/providers';
 import { geminiUsage, resetTime, usageListeners } from '../lib/quota';
 import { enableReminders } from '../lib/reminders';
 import { updateSettings, useSettings, type Settings } from '../lib/settings';
-import { localDay } from '../lib/time';
+import { daysAgo, downloadBackup, lastBackupAt, persistStorage, storageStatus, useBackupState, type StorageStatus } from '../lib/storage';
+
+// Groq and Gemini cover almost everyone; the rest are folded away unless in use.
+const MAIN_KEYS: KeyId[] = ['groq', 'gemini'];
 
 // Model lists include speech, safety and TTS models; keep the relevant ones per use.
 const isSpeechModel = (id: string) => /whisper|transcribe/i.test(id);
@@ -136,10 +138,50 @@ function KeyField({ id, settings }: { id: KeyId; settings: Settings }) {
   );
 }
 
+/** Whether the browser has promised to keep this app's data, and how much is stored. */
+function StorageInfo() {
+  const [status, setStatus] = useState<StorageStatus | null>(null);
+  const [asked, setAsked] = useState(false);
+  useEffect(() => {
+    void storageStatus().then(setStatus);
+  }, [asked]);
+  if (!status?.supported) return null;
+  const used = status.usage ? ` (${(status.usage / 1_048_576).toFixed(1)} MB used)` : '';
+  return status.persisted ? (
+    <p className="small">✓ This browser has agreed to keep your data{used}.</p>
+  ) : (
+    <div className="small">
+      <p>
+        ⚠ The browser may delete your data if the device runs low on space{used}.{' '}
+        <button
+          className="link small"
+          onClick={async () => {
+            await persistStorage();
+            setAsked(true);
+          }}
+        >
+          Ask it to keep the data
+        </button>
+      </p>
+      {asked && (
+        <p className="muted">
+          The browser didn’t agree yet. It usually does once the app is installed: use <b>Add to Home Screen</b> (on iPhone, from
+          Safari’s Share button) or <b>Install app</b> in Chrome’s menu.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function SettingsView() {
   const settings = useSettings();
   const importInput = useRef<HTMLInputElement>(null);
   const [dataNotice, setDataNotice] = useState<string | null>(null);
+  useBackupState();
+  const extraKeys = (Object.keys(KEYS) as KeyId[]).filter((id) => !MAIN_KEYS.includes(id));
+  const extraInUse = extraKeys.some(
+    (id) => settings.keys[id] || STT_PROVIDERS[settings.stt.provider].key === id || LLM_PROVIDERS[settings.llm.provider].key === id,
+  );
   const stt = STT_PROVIDERS[settings.stt.provider];
   const llm = LLM_PROVIDERS[settings.llm.provider];
 
@@ -162,9 +204,15 @@ export function SettingsView() {
       </Notice>
 
       <Section title="API keys">
-        {(Object.keys(KEYS) as KeyId[]).map((id) => (
+        {MAIN_KEYS.map((id) => (
           <KeyField key={id} id={id} settings={settings} />
         ))}
+        <details className="advanced" open={extraInUse}>
+          <summary>More providers: Sarvam AI, OpenRouter, Mistral, your own server</summary>
+          {extraKeys.map((id) => (
+            <KeyField key={id} id={id} settings={settings} />
+          ))}
+        </details>
       </Section>
 
       <Section title="Transcription">
@@ -186,10 +234,13 @@ export function SettingsView() {
         </label>
         <p className="muted small">{stt.note}</p>
         {settings.stt.provider !== 'browser' && (
-          <label>
-            Model
-            <ModelPicker value={settings.stt.model} onChange={(model) => updateSettings({ stt: { ...settings.stt, model } })} load={loadSttModels} />
-          </label>
+          <details className="advanced">
+            <summary>Model: {settings.stt.model || 'default'}</summary>
+            <label>
+              Transcription model
+              <ModelPicker value={settings.stt.model} onChange={(model) => updateSettings({ stt: { ...settings.stt, model } })} load={loadSttModels} />
+            </label>
+          </details>
         )}
         <label>
           Language
@@ -230,22 +281,25 @@ export function SettingsView() {
             </span>
           </label>
         )}
-        <label>
-          Model
-          <ModelPicker
-            value={settings.llm.model}
-            onChange={(model) => updateSettings({ llm: { ...settings.llm, model } })}
-            load={async () => (await listModels(settings.llm.provider, settings.keys, settings.llm.baseUrl)).filter(isChatModel)}
-          />
-          {settings.llm.provider === 'openrouter' && <span className="muted small">Free models end in “:free”. “openrouter/free” picks one for you.</span>}
-          {!llm.jsonMode && <span className="muted small">Tip: pick a model that supports tool calling so Ask can take actions.</span>}
-          {!settings.geminiBilling && settings.llm.provider === 'gemini' && settings.stt.provider === 'gemini' && settings.llm.model === settings.stt.model && (
-            <span className="muted small">
-              Transcription uses this model too, so they share its 20 free requests a day. Pick a different Gemini model here (each model
-              has its own limit), or use Groq for the AI.
-            </span>
-          )}
-        </label>
+        <details className="advanced" open={!settings.llm.model}>
+          <summary>Model: {settings.llm.model || 'none chosen'}</summary>
+          <label>
+            AI model
+            <ModelPicker
+              value={settings.llm.model}
+              onChange={(model) => updateSettings({ llm: { ...settings.llm, model } })}
+              load={async () => (await listModels(settings.llm.provider, settings.keys, settings.llm.baseUrl)).filter(isChatModel)}
+            />
+            {settings.llm.provider === 'openrouter' && <span className="muted small">Free models end in “:free”. “openrouter/free” picks one for you.</span>}
+            {!llm.jsonMode && <span className="muted small">Tip: pick a model that supports tool calling so Ask can take actions.</span>}
+          </label>
+        </details>
+        {!settings.geminiBilling && settings.llm.provider === 'gemini' && settings.stt.provider === 'gemini' && settings.llm.model === settings.stt.model && (
+          <p className="muted small">
+            Transcription uses this model too, so they share its 20 free requests a day. Pick a different Gemini model under
+            Model above (each model has its own limit), or use Groq for the AI.
+          </p>
+        )}
         <label>
           Write summaries and answers in
           <input value={settings.outputLanguage} onChange={(e) => updateSettings({ outputLanguage: e.target.value })} placeholder="English" />
@@ -289,14 +343,12 @@ export function SettingsView() {
 
       <Section title="Your data">
         <p className="muted small">
-          Conversations, tasks and memories are stored in this browser (IndexedDB). Back them up regularly. Clearing site data
-          deletes them. Backups don’t include API keys.
+          Conversations, tasks and memories are stored only in this browser. Clearing site data deletes them, so download a backup
+          now and then. Backups don’t include API keys. Last backup: {daysAgo(lastBackupAt())}.
         </p>
+        <StorageInfo />
         <div className="actions">
-          <button
-            className="secondary"
-            onClick={async () => download(`personal-ai-backup-${localDay()}.json`, new Blob([JSON.stringify(await exportAll(), null, 1)], { type: 'application/json' }))}
-          >
+          <button className="secondary" onClick={() => downloadBackup().catch((e: Error) => setDataNotice(`Backup failed: ${e.message}`))}>
             Export backup
           </button>
           <button className="secondary" onClick={() => importInput.current?.click()}>
@@ -333,6 +385,13 @@ export function SettingsView() {
         />
         {dataNotice && <Notice>{dataNotice}</Notice>}
       </Section>
+
+      <p className="fineprint">
+        Personal AI {__APP_VERSION__} (build {__BUILD__}) ·{' '}
+        <button className="link small" onClick={() => updateSettings({ onboarded: false })}>
+          Show the welcome guide again
+        </button>
+      </p>
 
       <p className="fineprint">
         Audio is sent only to the transcription provider you choose, and only while someone is

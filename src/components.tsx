@@ -3,6 +3,7 @@ import type { LimitKind } from './lib/http';
 import { alternativeProviders } from './lib/llm';
 import { LLM_PROVIDERS, type LlmProviderId } from './lib/providers';
 import { updateSettings, useSettings } from './lib/settings';
+import { backupDue, daysAgo, downloadBackup, lastBackupAt, snoozeBackupReminder, useBackupState } from './lib/storage';
 
 // ---- Hash routing (works on GitHub Pages without server rewrites) ----
 
@@ -31,7 +32,7 @@ function inline(text: string): ReactNode[] {
     const cite = /^\[c:([0-9a-f-]+)\]$/i.exec(part);
     if (cite) {
       return (
-        <a key={i} className="cite" href={`#/c/${cite[1]}`} title="Open conversation">
+        <a key={i} className="cite" href={`#/c/${cite[1]}`} title="Open conversation" aria-label="Open source conversation">
           ↗
         </a>
       );
@@ -66,7 +67,11 @@ export function Markdown({ text }: { text: string }) {
 // ---- Small building blocks ----
 
 export function Notice({ kind = 'info', children }: { kind?: 'info' | 'warn' | 'error'; children: ReactNode }) {
-  return <div className={`notice notice-${kind}`}>{children}</div>;
+  return (
+    <div className={`notice notice-${kind}`} role={kind === 'error' ? 'alert' : 'status'}>
+      {children}
+    </div>
+  );
 }
 
 export function Empty({ children }: { children: ReactNode }) {
@@ -82,6 +87,33 @@ export function Section({ title, children, actions }: { title: string; children:
       </div>
       {children}
     </section>
+  );
+}
+
+/** Nudges people to download a backup, since everything lives only in this browser. */
+export function BackupReminder({ count }: { count: number }) {
+  useBackupState();
+  const [error, setError] = useState('');
+  if (!backupDue(count)) return null;
+  const last = lastBackupAt();
+  return (
+    <Notice kind="warn">
+      <div className="held">
+        <span>
+          Your {count} conversations are saved only in this browser{last ? `, last backed up ${daysAgo(last)}` : ''}. A backup file keeps
+          them safe if the browser’s data is ever cleared.
+        </span>
+        <span className="actions">
+          <button className="small" onClick={() => downloadBackup().catch((e: Error) => setError(e.message))}>
+            Back up now
+          </button>
+          <button className="small secondary" onClick={() => snoozeBackupReminder()}>
+            Later
+          </button>
+        </span>
+      </div>
+      {error && <p className="error-text small">{error}</p>}
+    </Notice>
   );
 }
 

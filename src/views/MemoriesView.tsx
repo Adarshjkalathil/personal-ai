@@ -39,13 +39,13 @@ export function MemoriesView() {
             {memory.text}
             <span className="muted small"> · {formatDateTime(memory.createdAt)}</span>
             {memory.conversationId && (
-              <a className="link small" href={`#/c/${memory.conversationId}`}>
+              <a className="link small" href={`#/c/${memory.conversationId}`} title="Open source conversation" aria-label="Open source conversation">
                 {' '}
                 ↗
               </a>
             )}
           </span>
-          <button className="link small" title="Delete" onClick={() => remove('memories', memory.id)}>
+          <button className="link small" title="Delete" aria-label={`Delete memory: ${memory.text}`} onClick={() => remove('memories', memory.id)}>
             ✕
           </button>
         </div>

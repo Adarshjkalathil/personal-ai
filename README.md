@@ -29,9 +29,11 @@ about a minute, and you don't need a credit card.
 
 ### Step 2: Paste the key into the app
 
-1. Open **[Personal AI](https://adarshjkalathil.github.io/personal-ai/)**.
-2. Tap **⚙️ Settings** (at the bottom on a phone, at the top on a computer).
-3. Paste your key into the **Groq** box. It saves automatically.
+1. Open **[Personal AI](https://adarshjkalathil.github.io/personal-ai/)**. The first time, a short welcome guide opens.
+2. Tap **Set up**, paste your key into the box, and wait for **✓ The key works**.
+3. Pick the language you mostly speak, tap **Test your microphone** if you like, then **Start using Personal AI**.
+
+Later you can change keys in **⚙️ Settings** (under **☰ More** on a phone, at the top on a computer).
 
 ### Step 3: Record
 
@@ -44,8 +46,8 @@ about a minute, and you don't need a credit card.
 
 **That's it.** 🎉
 
-> **No key at all?** In **Settings → Transcription → Provider**, choose **Browser speech recognition (no key)**.
-> Recording then works in Chrome or Edge with no sign-up. You still need a key for summaries and the Ask feature.
+> **No key at all?** In the welcome guide, tap **Try it first without a key** (or later, in **Settings → Transcription →
+> Provider**, choose **Browser speech recognition (no key)**). Recording then works in Chrome or Edge with no sign-up. You still need a key for summaries and the Ask feature.
 
 ---
 
@@ -57,8 +59,8 @@ about a minute, and you don't need a credit card.
 | 💬 **Conversations** | Each conversation gets a title, a short summary, key points, decisions, who was there, and the mood. Tap **Name speakers** to change “Speaker 1” into a real name. |
 | ✨ **Ask** | Ask about anything you've recorded: *“What did I promise to do this week?”* It can also do things: *“Remind me tomorrow at 9 to call the bank.”* |
 | ✅ **Tasks** | To-dos found in your conversations, plus your own. Turn on reminders, or add them to your calendar. |
-| 🧠 **Memories** | Facts it has learned about you, such as people's names, preferences and plans. Delete anything you don't want kept. |
-| 📰 **Recap** | A summary of any day: highlights, decisions, and what's still open. |
+| 🧠 **Memories** (under ☰ More on a phone) | Facts it has learned about you, such as people's names, preferences and plans. Delete anything you don't want kept. |
+| 📰 **Recap** (under ☰ More on a phone) | A summary of any day: highlights, decisions, and what's still open. |
 
 **Voice commands:** while recording, say *“Hey assistant, remind me to buy milk at 6”*. It adds the task and answers out loud.
 
@@ -107,7 +109,8 @@ and Gemini). When one provider hits its free limit, the app asks whether to use 
 | “Free-tier limit” or “daily limit is used up” | Free plans allow only so many requests per minute and per day. Your audio isn't lost: it's saved, and a **Retry** button appears on the Record tab. Wait a minute, or for a daily limit until it resets (Gemini resets at midnight US Pacific time, about 12:30 PM in India, 1:30 PM in winter). Or add a second free key (for example Groq) in Settings, switch to it, and tap **Retry**. |
 | Gemini text appears slowly | That's on purpose. Gemini's free plan allows only about 20 requests a day, so the app sends 2–5 minutes of speech at a time. Groq is faster. |
 | The text is gibberish or in the wrong language | Choose your **Spoken language** on the Record tab instead of Auto-detect. Groq's Whisper is weak at Malayalam, Tamil, Telugu, Kannada and some other Indian languages. For those, switch transcription to **Google Gemini** or **Sarvam AI** in Settings. |
-| Recording stops on my phone | Keep the app open on screen. Phones pause web pages in the background. |
+| Recording stops on my phone | Keep the app open on screen. Phones pause web pages in the background. If the app closes mid-recording, the audio that wasn't written down yet is kept: open the app again and tap **Retry** on the Record tab. |
+| “A new version is ready” | Tap **Reload** to get the latest version. Your data isn't affected. |
 | Nothing is summarized | Summaries need a key for the AI too. A Groq key covers both. |
 | I want my data on another device | **Settings → Your data → Export backup**, then **Import backup** on the other device. |
 
@@ -123,7 +126,9 @@ and Gemini). When one provider hits its free limit, the app asks whether to use 
 - Free plans of some services (Google, Mistral) may use what you send to improve their AI. For complete privacy, use
   Ollama on your own computer.
 - **Always tell people when you're recording.** In many places it's required by law.
-- Clearing your browser's data deletes your recordings, so use **Export backup** now and then.
+- Clearing your browser's data deletes your recordings. The app reminds you about once a week to download a backup.
+  **Settings → Your data** also shows whether the browser has agreed to keep your data. Installing the app (**Add to Home
+  Screen**) usually makes it agree.
 
 ---
 
@@ -173,6 +178,8 @@ mic ─► AudioWorklet ─► 16 kHz resample ─► voice detector ─► spee
 | `src/lib/agent.ts` | Ask assistant with tools |
 | `src/lib/session.ts` | Recording session, voice commands, live hints |
 | `src/lib/db.ts` | IndexedDB storage, backup/restore |
+| `src/lib/storage.ts` | Persistent storage, backup reminders, update check |
+| `src/views/WelcomeView.tsx` | First-run guide |
 
 The production build sets a strict Content-Security-Policy and loads no third-party scripts. The conversation fields
 and the “discard trivial snippets” rule are modelled on [Omi](https://github.com/BasedHardware/omi) (MIT).

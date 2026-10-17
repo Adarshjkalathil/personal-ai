@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { useEffect, useState } from 'react';
+import type { SpeechChunk } from './audio';
 import type { LimitKind } from './http';
 
 export interface Segment {
@@ -82,17 +83,29 @@ export interface Memory {
   conversationId?: string;
 }
 
+/** Recorded audio that hasn't been transcribed yet, kept so a reload or crash doesn't lose it. */
+export interface PendingAudio {
+  id: string;
+  chunk: SpeechChunk;
+  source: Conversation['source'];
+  /** Unset if the app closed before the chunk was assigned to a conversation. */
+  conversationId?: string;
+}
+
 type StoreName = 'conversations' | 'tasks' | 'memories';
 type StoreValue = { conversations: Conversation; tasks: Task; memories: Memory };
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function db() {
-  dbPromise ??= openDB('personal-ai', 1, {
-    upgrade(database) {
-      database.createObjectStore('conversations', { keyPath: 'id' }).createIndex('startedAt', 'startedAt');
-      database.createObjectStore('tasks', { keyPath: 'id' }).createIndex('createdAt', 'createdAt');
-      database.createObjectStore('memories', { keyPath: 'id' }).createIndex('createdAt', 'createdAt');
+  dbPromise ??= openDB('personal-ai', 2, {
+    upgrade(database, oldVersion) {
+      if (oldVersion < 1) {
+        database.createObjectStore('conversations', { keyPath: 'id' }).createIndex('startedAt', 'startedAt');
+        database.createObjectStore('tasks', { keyPath: 'id' }).createIndex('createdAt', 'createdAt');
+        database.createObjectStore('memories', { keyPath: 'id' }).createIndex('createdAt', 'createdAt');
+      }
+      if (oldVersion < 2) database.createObjectStore('audio', { keyPath: 'id' });
     },
   });
   return dbPromise;
@@ -124,8 +137,21 @@ export async function remove(store: StoreName, id: string): Promise<void> {
 
 export async function clearAll(): Promise<void> {
   const database = await db();
-  await Promise.all((['conversations', 'tasks', 'memories'] as const).map((store) => database.clear(store)));
+  await Promise.all((['conversations', 'tasks', 'memories', 'audio'] as const).map((store) => database.clear(store)));
   notify();
+}
+
+export async function saveAudio(audio: PendingAudio): Promise<void> {
+  await (await db()).put('audio', audio);
+}
+
+export async function deleteAudio(id: string): Promise<void> {
+  await (await db()).delete('audio', id);
+}
+
+export async function listAudio(): Promise<PendingAudio[]> {
+  const all = (await (await db()).getAll('audio')) as PendingAudio[];
+  return all.sort((a, b) => a.chunk.start - b.chunk.start);
 }
 
 /** Read-modify-write so concurrent updates (transcription vs. analysis) don't overwrite each other. */

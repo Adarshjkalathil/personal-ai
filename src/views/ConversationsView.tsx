@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Empty, navigate } from '../components';
+import { BackupReminder, Empty, navigate } from '../components';
 import { useList, type Conversation } from '../lib/db';
 import { searchConversations } from '../lib/search';
 import { formatDateTime, formatDuration, localDay } from '../lib/time';
@@ -44,6 +44,7 @@ export function ConversationsView() {
   let lastDay = '';
   return (
     <div className="conversations">
+      <BackupReminder count={conversations.length} />
       <div className="toolbar">
         <input type="search" placeholder="Search conversations…" value={query} onChange={(e) => setQuery(e.target.value)} />
         {hiddenCount > 0 && (

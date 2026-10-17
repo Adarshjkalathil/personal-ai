@@ -1,5 +1,5 @@
 import { useRef, type CSSProperties } from 'react';
-import { BusyChoice, Notice, navigate } from '../components';
+import { BackupReminder, BusyChoice, Notice, navigate } from '../components';
 import { useList, speakerName } from '../lib/db';
 import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
 import { session, useSession } from '../lib/session';
@@ -39,9 +39,10 @@ export function RecordView() {
           disabled={busy || state.mode === 'uploading' || !!sttIssue}
           onClick={() => (recording ? session.stop() : session.start())}
           aria-label={recording ? 'Stop recording' : 'Start recording'}
+          aria-pressed={recording}
           style={{ '--level': state.level } as CSSProperties}
         >
-          <span>{recording ? '■' : '●'}</span>
+          <span aria-hidden="true">{recording ? '■' : '●'}</span>
         </button>
         <div className="record-status">
           <strong>
@@ -92,8 +93,14 @@ export function RecordView() {
         <Notice kind="warn">
           <div className="held">
             <span>
-              {formatDuration(state.held.ms)} of audio is saved and waiting to be transcribed. Wait a minute or switch provider in{' '}
-              <a href="#/settings">Settings</a>, then retry.
+              {formatDuration(state.held.ms)} of audio is saved and waiting to be transcribed.{' '}
+              {state.error ? (
+                <>
+                  Wait a minute or switch provider in <a href="#/settings">Settings</a>, then retry.
+                </>
+              ) : (
+                'It was recorded before the app last closed. Tap Retry to transcribe it.'
+              )}
             </span>
             <button className="small" disabled={state.mode === 'uploading'} onClick={() => session.retryHeld()}>
               Retry
@@ -150,7 +157,7 @@ export function RecordView() {
               </button>
             )}
           </div>
-          <div className="transcript">
+          <div className="transcript" aria-live="polite">
             {current?.segments.slice(-12).map((segment) => (
               <p key={segment.id}>
                 <span className="time">{formatTime(segment.start)}</span>
@@ -169,6 +176,8 @@ export function RecordView() {
           {state.upload.total > 0 ? `: ${state.upload.done} of ${state.upload.total} parts` : ': decoding audio…'}
         </Notice>
       )}
+
+      {state.mode === 'idle' && conversations && <BackupReminder count={conversations.length} />}
 
       <div className="record-extra">
         <input

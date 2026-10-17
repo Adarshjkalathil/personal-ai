@@ -21,7 +21,7 @@ export function TaskRow({ task }: { task: Task }) {
       </label>
       <span className="row-actions">
         {task.conversationId && (
-          <a className="link small" href={`#/c/${task.conversationId}`} title="Open source conversation">
+          <a className="link small" href={`#/c/${task.conversationId}`} title="Open source conversation" aria-label="Open source conversation">
             ↗
           </a>
         )}
@@ -32,11 +32,12 @@ export function TaskRow({ task }: { task: Task }) {
             target="_blank"
             rel="noreferrer"
             title="Add to Google Calendar"
+            aria-label="Add to Google Calendar"
           >
             📅
           </a>
         )}
-        <button className="link small" title="Delete" onClick={() => remove('tasks', task.id)}>
+        <button className="link small" title="Delete" aria-label={`Delete task: ${task.text}`} onClick={() => remove('tasks', task.id)}>
           ✕
         </button>
       </span>

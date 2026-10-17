@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import pkg from './package.json' with { type: 'json' };
 
 // API keys live in localStorage, so the production build gets a strict CSP:
 // only our own scripts run, while fetch() may reach any HTTPS API (plus a
@@ -26,8 +27,23 @@ function cspPlugin(): Plugin {
   };
 }
 
+// Each build gets an id; the running app polls version.json and offers a reload when it changes.
+const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
+const BUILD = env.GITHUB_SHA?.slice(0, 7) ?? Date.now().toString(36);
+
+function versionPlugin(): Plugin {
+  return {
+    name: 'emit-version',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD }) });
+    },
+  };
+}
+
 export default defineConfig({
   // Relative base so the build works at https://<user>.github.io/<repo>/ without configuration.
   base: './',
-  plugins: [react(), cspPlugin()],
+  plugins: [react(), cspPlugin(), versionPlugin()],
+  define: { __BUILD__: JSON.stringify(BUILD), __APP_VERSION__: JSON.stringify(pkg.version) },
 });

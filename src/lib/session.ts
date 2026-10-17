@@ -7,10 +7,11 @@ import { runAgent, type AgentReply } from './agent';
 import { analyzeConversation } from './analyze';
 import { liveHints, type LiveHint } from './assist';
 import { chunkFile, MicCapture, type SpeechChunk } from './audio';
-import { get, newId, patch, put, remove, type Conversation, type Segment } from './db';
+import { deleteAudio, get, list, listAudio, newId, patch, put, remove, saveAudio, type Conversation, type Segment } from './db';
 import { ApiError, limitKind, rateLimitListeners, type LimitKind } from './http';
 import { browserSpeechLanguage, type LlmProviderId, type SttProviderId } from './providers';
 import { chunkPolicy, getSettings, llmProblem, sttProblem } from './settings';
+import { persistStorage } from './storage';
 import { transcribe, type TranscribedLine } from './stt';
 
 export interface CommandResult {
@@ -41,6 +42,8 @@ export interface SessionState {
 }
 
 interface Job {
+  /** Id of the saved copy of the audio (unset for uploaded files, which the user still has). */
+  id?: string;
   chunk: SpeechChunk;
   conversationId: string;
 }
@@ -109,6 +112,7 @@ class Session {
       return;
     }
     this.set({ mode: 'starting', error: undefined, hints: [], command: undefined, interim: '' });
+    void persistStorage();
     try {
       if (settings.stt.provider === 'browser') this.startBrowserSpeech();
       else {
@@ -148,8 +152,44 @@ class Session {
 
   // ---- Chunk pipeline (sequential, so transcripts stay in order) ----
 
+  /** Saves the audio straight away, so it survives a crash or reload until it's transcribed. */
   private enqueue(chunk: SpeechChunk, source: Conversation['source']) {
-    this.schedule(async () => this.process({ chunk, conversationId: await this.conversationFor(chunk.start, source) }));
+    const id = newId();
+    void saveAudio({ id, chunk, source }).catch(() => undefined);
+    this.schedule(async () => {
+      const conversationId = await this.conversationFor(chunk.start, source);
+      await saveAudio({ id, chunk, source, conversationId }).catch(() => undefined);
+      await this.process({ id, chunk, conversationId });
+    });
+  }
+
+  /**
+   * Picks up after the app was closed mid-recording: audio that was never transcribed
+   * waits for Retry, and conversations left open are finished and summarized.
+   */
+  async restore(): Promise<void> {
+    try {
+      let orphans: string | undefined;
+      for (const item of await listAudio()) {
+        let conversationId = item.conversationId;
+        if (!conversationId || !(await get('conversations', conversationId))) {
+          // The app closed before this audio got a conversation: collect such audio in a new one.
+          if (!orphans) {
+            orphans = newId();
+            const start = item.chunk.start;
+            await put('conversations', { id: orphans, startedAt: start, endedAt: start, source: item.source, status: 'recording', segments: [] });
+          }
+          conversationId = orphans;
+          await saveAudio({ ...item, conversationId });
+        }
+        this.hold({ id: item.id, chunk: item.chunk, conversationId });
+      }
+      for (const conversation of await list('conversations')) {
+        if (conversation.status === 'recording' && conversation.id !== this.state.conversationId) await this.finish(conversation.id);
+      }
+    } catch {
+      // Storage unavailable (e.g. private mode); nothing to restore.
+    }
   }
 
   private schedule(task: () => Promise<void>) {
@@ -173,6 +213,7 @@ class Session {
       const lines = await transcribe(job.chunk, settings, { previousText });
       if (!this.held.length) this.set({ error: undefined, notice: undefined });
       await this.addLines(job.conversationId, lines, job.chunk.start, job.chunk.start + job.chunk.durationMs);
+      if (job.id) await deleteAudio(job.id).catch(() => undefined);
     } catch (error) {
       this.hold(job);
       if (error instanceof ApiError && (error.daily || error.outOfCredit)) this.exhausted = settings.stt.provider;
@@ -183,7 +224,11 @@ class Session {
   private hold(job: Job) {
     this.held.push(job);
     let ms = this.held.reduce((n, j) => n + j.chunk.durationMs, 0);
-    while (ms > MAX_HELD_MS && this.held.length > 1) ms -= this.held.shift()!.chunk.durationMs;
+    while (ms > MAX_HELD_MS && this.held.length > 1) {
+      const dropped = this.held.shift()!;
+      ms -= dropped.chunk.durationMs;
+      if (dropped.id) void deleteAudio(dropped.id).catch(() => undefined);
+    }
     this.set({ held: { count: this.held.length, ms } });
   }
 
