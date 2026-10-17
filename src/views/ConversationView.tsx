@@ -1,11 +1,13 @@
+import { ArrowLeft, CalendarPlus, Download, Sparkles, Trash } from 'lucide-react';
 import { useState } from 'react';
-import { BusyChoice, Empty, Notice, Section, copyText, limitKind, navigate, useAction } from '../components';
+import { BusyChoice, Empty, Notice, Section, Stats, Tile, copyText, limitKind, navigate, toneFor, useAction } from '../components';
 import { download, eventsToIcs, googleCalendarUrl, mailtoUrl, whatsappUrl } from '../lib/actions';
 import { analyzeConversation } from '../lib/analyze';
 import { patch, remove, speakerName, transcriptText, useList } from '../lib/db';
 import { findByRef } from '../lib/search';
 import { llmProblem, useSettings } from '../lib/settings';
 import { formatDateTime, formatDuration, formatTime, parseLocalDate } from '../lib/time';
+import { STATUS_PILLS } from './ConversationsView';
 import { TaskRow } from './TasksView';
 
 export function ConversationView({ id }: { id: string }) {
@@ -26,36 +28,48 @@ export function ConversationView({ id }: { id: string }) {
   const speakers = [...new Set(conversation.segments.map((s) => s.speaker).filter((s): s is string => !!s))];
   const llmIssue = llmProblem(settings);
   const title = a?.title ?? conversation.fileName ?? 'Conversation';
+  const pill = STATUS_PILLS[conversation.status];
 
   return (
     <div className="conversation">
-      <button className="link back" onClick={() => navigate('conversations')}>
-        ← All conversations
-      </button>
-      <header className="conversation-header">
-        <span className="emoji big">{a?.emoji ?? '🎙️'}</span>
-        <div>
-          <h2>{title}</h2>
-          <p className="muted">
-            {formatDateTime(conversation.startedAt)} · {formatDuration(conversation.endedAt - conversation.startedAt)}
-            {a?.category && ` · ${a.category}`}
-            {a?.language && ` · ${a.language}`}
-          </p>
-        </div>
+      <header className="page-head">
+        <a href="#/conversations" className="back" aria-label="All conversations">
+          <ArrowLeft size={22} />
+        </a>
       </header>
 
-      <div className="actions">
+      <div className="card profile">
+        <Tile tone={toneFor(a?.category ?? conversation.source)} size="lg">
+          {a?.emoji ?? (conversation.source === 'upload' ? '📁' : '🎙️')}
+        </Tile>
+        <h1>{title}</h1>
+        <p className="meta">
+          {formatDateTime(conversation.startedAt)}
+          {a?.category && ` · ${a.category}`}
+          {a?.language && ` · ${a.language}`}
+        </p>
+        {pill && <span className={`pill pill-${pill.tone}`}>{pill.label}</span>}
+        <Stats
+          items={[
+            { value: formatDuration(conversation.endedAt - conversation.startedAt), label: 'Length' },
+            { value: speakers.length || a?.people.length || 1, label: 'Speakers' },
+            { value: ownTasks.length, label: 'Tasks' },
+          ]}
+        />
+        <div className="profile-actions">
+          <button
+            disabled={busy || conversation.status === 'analyzing' || conversation.status === 'recording' || !!llmIssue}
+            onClick={() => run(() => analyzeConversation(conversation.id, { interactive: true }))}
+          >
+            <Sparkles size={18} />
+            {conversation.status === 'analyzing' || busy ? 'Summarizing…' : a ? 'Summarize again' : 'Summarize'}
+          </button>
+          <button className="peach" onClick={() => download(`${title}.txt`, new Blob([transcriptText(conversation, true)], { type: 'text/plain' }))}>
+            <Download size={18} /> Transcript
+          </button>
+        </div>
         <button
-          disabled={busy || conversation.status === 'analyzing' || conversation.status === 'recording' || !!llmIssue}
-          onClick={() => run(() => analyzeConversation(conversation.id, { interactive: true }))}
-        >
-          {conversation.status === 'analyzing' || busy ? 'Summarizing…' : a ? 'Summarize again' : 'Summarize'}
-        </button>
-        <button className="secondary" onClick={() => download(`${title}.txt`, new Blob([transcriptText(conversation, true)], { type: 'text/plain' }))}>
-          Download transcript
-        </button>
-        <button
-          className="secondary danger"
+          className="link danger small"
           onClick={async () => {
             if (!confirm('Delete this conversation and its tasks and memories?')) return;
             for (const t of ownTasks) await remove('tasks', t.id);
@@ -64,7 +78,7 @@ export function ConversationView({ id }: { id: string }) {
             navigate('conversations');
           }}
         >
-          Delete
+          <Trash size={15} /> Delete conversation
         </button>
       </div>
 
@@ -112,7 +126,7 @@ export function ConversationView({ id }: { id: string }) {
               {a.events.map((event, i) => (
                 <div key={i} className="row">
                   <span>
-                    📅 <b>{event.title}</b>
+                    <b>{event.title}</b>
                     <span className="muted">
                       {' '}
                       {parseLocalDate(event.start) ? formatDateTime(parseLocalDate(event.start)!.getTime()) : 'time not set'}
@@ -120,7 +134,7 @@ export function ConversationView({ id }: { id: string }) {
                     </span>
                   </span>
                   <a className="button secondary small" href={googleCalendarUrl(event, a.overview)} target="_blank" rel="noreferrer">
-                    Add to Google Calendar
+                    <CalendarPlus size={16} /> Add to calendar
                   </a>
                 </div>
               ))}

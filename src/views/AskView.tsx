@@ -1,3 +1,4 @@
+import { Send, Sparkles, Volume2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { BusyChoice, Markdown, Notice, limitKind, useAction } from '../components';
 import { speak } from '../lib/actions';
@@ -77,6 +78,9 @@ export function AskView() {
 
       {!messages.length && (
         <div className="ask-intro">
+          <span className="ask-icon" aria-hidden="true">
+            <Sparkles size={34} />
+          </span>
           <h2>Ask about your conversations</h2>
           <p className="muted">
             The assistant searches your recordings, and can add tasks, remember facts, schedule events and draft messages.
@@ -106,7 +110,7 @@ export function AskView() {
                 <Markdown text={message.content || '(no answer)'} />
                 <AgentActions actions={message.reply?.actions ?? []} />
                 <button className="link small" onClick={() => speak(message.content)}>
-                  🔊 Read aloud
+                  <Volume2 size={15} /> Read aloud
                 </button>
               </>
             )}
@@ -125,9 +129,9 @@ export function AskView() {
           ask(input);
         }}
       >
-        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything, or tell it what to do…" disabled={!!problem} />
-        <button type="submit" disabled={busy || !input.trim() || !!problem}>
-          Send
+        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything, or tell it what to do…" aria-label="Your question" disabled={!!problem} />
+        <button type="submit" className="send-button" aria-label="Send" disabled={busy || !input.trim() || !!problem}>
+          <Send size={20} />
         </button>
       </form>
     </div>

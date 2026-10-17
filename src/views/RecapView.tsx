@@ -1,3 +1,4 @@
+import { Sparkles, Volume2 } from 'lucide-react';
 import { useState } from 'react';
 import { BusyChoice, Markdown, Notice, limitKind, useAction } from '../components';
 import { speak } from '../lib/actions';
@@ -17,8 +18,9 @@ export function RecapView() {
 
   return (
     <div className="recap">
-      <div className="toolbar">
+      <div className="card toolbar">
         <input
+          aria-label="Day"
           type="date"
           value={day}
           max={localDay()}
@@ -28,11 +30,12 @@ export function RecapView() {
           }}
         />
         <button disabled={busy || !count || !!problem} onClick={() => run(async () => setRecap(await dailyRecap(day)))}>
+          <Sparkles size={18} />
           {busy ? 'Writing recap…' : recap ? 'Regenerate' : 'Generate recap'}
         </button>
         {recap && (
           <button className="secondary" onClick={() => speak(recap)}>
-            🔊 Listen
+            <Volume2 size={18} /> Listen
           </button>
         )}
       </div>

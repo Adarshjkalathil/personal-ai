@@ -33,7 +33,7 @@ about a minute, and you don't need a credit card.
 2. Tap **Set up**, paste your key into the box, and wait for **✓ The key works**.
 3. Pick the language you mostly speak, tap **Test your microphone** if you like, then **Start using Personal AI**.
 
-Later you can change keys in **⚙️ Settings** (under **☰ More** on a phone, at the top on a computer).
+Later you can change keys in **⚙️ Settings** (under **More** on a phone, at the top on a computer).
 
 ### Step 3: Record
 
@@ -59,8 +59,8 @@ Later you can change keys in **⚙️ Settings** (under **☰ More** on a phone,
 | 💬 **Conversations** | Each conversation gets a title, a short summary, key points, decisions, who was there, and the mood. Tap **Name speakers** to change “Speaker 1” into a real name. |
 | ✨ **Ask** | Ask about anything you've recorded: *“What did I promise to do this week?”* It can also do things: *“Remind me tomorrow at 9 to call the bank.”* |
 | ✅ **Tasks** | To-dos found in your conversations, plus your own. Turn on reminders, or add them to your calendar. |
-| 🧠 **Memories** (under ☰ More on a phone) | Facts it has learned about you, such as people's names, preferences and plans. Delete anything you don't want kept. |
-| 📰 **Recap** (under ☰ More on a phone) | A summary of any day: highlights, decisions, and what's still open. |
+| 🧠 **Memories** (under More on a phone) | Facts it has learned about you, such as people's names, preferences and plans. Delete anything you don't want kept. |
+| 📰 **Recap** (under More on a phone) | A summary of any day: highlights, decisions, and what's still open. |
 
 **Voice commands:** while recording, say *“Hey assistant, remind me to buy milk at 6”*. It adds the task and answers out loud.
 

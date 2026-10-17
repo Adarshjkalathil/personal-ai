@@ -1,5 +1,6 @@
+import { Lock, Mic, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Notice, navigate } from '../components';
+import { Notice, Tile, navigate } from '../components';
 import { ApiError } from '../lib/http';
 import { listModels } from '../lib/llm';
 import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
@@ -43,7 +44,7 @@ export function WelcomeView() {
   };
 
   return (
-    <div className="welcome">
+    <div className={`welcome ${step === 'intro' ? 'welcome-intro' : ''}`}>
       <div className="welcome-top">
         <span className="muted small">{step === 'intro' ? 'Welcome' : `Step ${step === 'key' ? 1 : 2} of 2`}</span>
         <button className="link small" onClick={finish}>
@@ -52,37 +53,56 @@ export function WelcomeView() {
       </div>
 
       {step === 'intro' && (
-        <div className="welcome-step">
-          <img src="./icon-192.png" alt="" width={72} height={72} className="welcome-icon" />
-          <h2>Your conversations, remembered.</h2>
-          <ul className="welcome-points">
-            <li>🎙️ Records and writes down what’s said, in English, Hindi, Malayalam and more.</li>
-            <li>✨ Summaries, to-dos, and answers to questions like “What did Ravi say about the budget?”</li>
-            <li>🔒 Everything stays in this browser. No account, no company server.</li>
-          </ul>
-          <button className="big" onClick={() => setStep('key')}>
-            Set up (about a minute)
-          </button>
-          {hasBrowserSpeech() ? (
-            <button
-              className="link"
-              onClick={() => {
-                updateSettings({ stt: { ...settings.stt, provider: 'browser', model: '' } });
-                setStep('ready');
-              }}
-            >
-              Try it first without a key
+        <>
+          <section className="hero hero-center">
+            <img src="./icon-192.png" alt="" width={76} height={76} className="welcome-icon" />
+            <h1>Your conversations, remembered.</h1>
+          </section>
+          <div className="welcome-step card overlap">
+            <ul className="welcome-points">
+              <li>
+                <Tile tone="mint" size="sm">
+                  <Mic size={20} />
+                </Tile>
+                Records and writes down what’s said, in English, Hindi, Malayalam and more.
+              </li>
+              <li>
+                <Tile tone="lavender" size="sm">
+                  <Sparkles size={20} />
+                </Tile>
+                Summaries, to-dos, and answers to questions like “What did Ravi say about the budget?”
+              </li>
+              <li>
+                <Tile tone="peach" size="sm">
+                  <Lock size={20} />
+                </Tile>
+                Everything stays in this browser. No account, no company server.
+              </li>
+            </ul>
+            <button className="big" onClick={() => setStep('key')}>
+              Set up (about a minute)
             </button>
-          ) : (
-            <p className="muted small">Trying without a key needs Chrome or Edge. Setup with a free key works in any browser.</p>
-          )}
-        </div>
+            {hasBrowserSpeech() ? (
+              <button
+                className="link"
+                onClick={() => {
+                  updateSettings({ stt: { ...settings.stt, provider: 'browser', model: '' } });
+                  setStep('ready');
+                }}
+              >
+                Try it first without a key
+              </button>
+            ) : (
+              <p className="muted small">Trying without a key needs Chrome or Edge. Setup with a free key works in any browser.</p>
+            )}
+          </div>
+        </>
       )}
 
       {step === 'key' && <KeyStep choice={choice} setChoice={setChoice} onDone={() => setStep('ready')} />}
 
       {step === 'ready' && (
-        <div className="welcome-step">
+        <div className="welcome-step card">
           <h2>Almost done</h2>
           {noKey && (
             <Notice>
@@ -149,7 +169,7 @@ function KeyStep({ choice, setChoice, onDone }: { choice: KeyChoice; setChoice: 
   };
 
   return (
-    <div className="welcome-step">
+    <div className="welcome-step card">
       <h2>Get a free key</h2>
       <p className="muted">
         A key is like a password that lets this app use a free AI service. No credit card needed.

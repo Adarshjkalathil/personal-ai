@@ -1,3 +1,4 @@
+import { ArrowUpRight, Bell, CalendarPlus, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { Empty, Notice, Section } from '../components';
 import { download, googleCalendarUrl, tasksToIcs } from '../lib/actions';
@@ -21,24 +22,24 @@ export function TaskRow({ task }: { task: Task }) {
       </label>
       <span className="row-actions">
         {task.conversationId && (
-          <a className="link small" href={`#/c/${task.conversationId}`} title="Open source conversation" aria-label="Open source conversation">
-            ↗
+          <a className="icon-button" href={`#/c/${task.conversationId}`} title="Open source conversation" aria-label="Open source conversation">
+            <ArrowUpRight size={18} />
           </a>
         )}
         {due && !task.done && (
           <a
-            className="link small"
+            className="icon-button"
             href={googleCalendarUrl({ title: task.text, start: task.due, durationMinutes: 15 })}
             target="_blank"
             rel="noreferrer"
             title="Add to Google Calendar"
             aria-label="Add to Google Calendar"
           >
-            📅
+            <CalendarPlus size={18} />
           </a>
         )}
-        <button className="link small" title="Delete" aria-label={`Delete task: ${task.text}`} onClick={() => remove('tasks', task.id)}>
-          ✕
+        <button className="icon-button" title="Delete" aria-label={`Delete task: ${task.text}`} onClick={() => remove('tasks', task.id)}>
+          <X size={18} />
         </button>
       </span>
     </div>
@@ -62,7 +63,7 @@ export function TasksView() {
   return (
     <div className="tasks">
       <form
-        className="add-task"
+        className="card add-task"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!text.trim()) return;
@@ -71,10 +72,10 @@ export function TasksView() {
           setDue('');
         }}
       >
-        <input placeholder="Add a task…" value={text} onChange={(e) => setText(e.target.value)} />
-        <input type="datetime-local" value={due} min={toDateTimeInput(new Date())} onChange={(e) => setDue(e.target.value)} />
+        <input placeholder="Add a task…" aria-label="New task" value={text} onChange={(e) => setText(e.target.value)} />
+        <input type="datetime-local" aria-label="Due (optional)" value={due} min={toDateTimeInput(new Date())} onChange={(e) => setDue(e.target.value)} />
         <button type="submit" disabled={!text.trim()}>
-          Add
+          <Plus size={18} /> Add
         </button>
       </form>
 
@@ -88,12 +89,12 @@ export function TasksView() {
               setNotice(granted ? 'Reminders are on while this app is open.' : 'Notifications were blocked by the browser.');
             }}
           >
-            🔔 Turn on reminders
+            <Bell size={16} /> Turn on reminders
           </button>
         )}
         {withDue.length > 0 && (
           <button className="secondary small" onClick={() => download('tasks.ics', tasksToIcs(withDue))}>
-            📅 Export {withDue.length} to calendar (.ics)
+            <CalendarPlus size={16} /> Export {withDue.length} to calendar (.ics)
           </button>
         )}
       </div>

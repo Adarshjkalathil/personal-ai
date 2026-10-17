@@ -341,6 +341,22 @@ export function SettingsView() {
         />
       </Section>
 
+      <Section title="Appearance">
+        <div className="segmented" role="radiogroup" aria-label="Theme">
+          {(['light', 'dark', 'system'] as const).map((theme) => (
+            <button
+              key={theme}
+              role="radio"
+              aria-checked={settings.theme === theme}
+              className={settings.theme === theme ? 'active' : ''}
+              onClick={() => updateSettings({ theme })}
+            >
+              {theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'Match device'}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title="Your data">
         <p className="muted small">
           Conversations, tasks and memories are stored only in this browser. Clearing site data deletes them, so download a backup

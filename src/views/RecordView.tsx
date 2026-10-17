@@ -1,10 +1,11 @@
+import { AudioLines, Mic, Square, Upload, X } from 'lucide-react';
 import { useRef, type CSSProperties } from 'react';
-import { BackupReminder, BusyChoice, Notice, navigate } from '../components';
+import { BackupReminder, BusyChoice, Notice, Stats, navigate } from '../components';
 import { useList, speakerName } from '../lib/db';
 import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
 import { session, useSession } from '../lib/session';
 import { llmProblem, sttProblem, updateSettings, useSettings } from '../lib/settings';
-import { formatDuration, formatTime } from '../lib/time';
+import { formatDuration, formatTime, localDay } from '../lib/time';
 import { AgentActions } from './AskView';
 
 // Whisper's accuracy is poor for these (it often outputs another language or invents text).
@@ -12,10 +13,16 @@ const WHISPER_WEAK = new Set(['ml-IN', 'ta-IN', 'te-IN', 'kn-IN', 'od-IN', 'as-I
 
 const HINT_ICONS = { question: '❓', commitment: '📌', fact: '💡', tip: '✨' } as const;
 
+function greeting(): string {
+  const hour = new Date().getHours();
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+}
+
 export function RecordView() {
   const settings = useSettings();
   const state = useSession();
   const conversations = useList('conversations');
+  const tasks = useList('tasks');
   const fileInput = useRef<HTMLInputElement>(null);
 
   const current = conversations?.find((c) => c.id === state.conversationId);
@@ -24,62 +31,89 @@ export function RecordView() {
   const sttIssue = sttProblem(settings);
   const llmIssue = llmProblem(settings);
 
+  const today = conversations?.filter((c) => localDay(new Date(c.startedAt)) === localDay()) ?? [];
+  const minutesToday = Math.round(today.reduce((ms, c) => ms + (c.endedAt - c.startedAt), 0) / 60_000);
+  const openTasks = tasks?.filter((t) => !t.done).length ?? 0;
+
   return (
     <div className="record">
+      <section className="hero">
+        <div className="hero-text">
+          <p className="hero-kicker">{greeting()}</p>
+          <h1>{recording ? 'Listening…' : 'Record'}</h1>
+        </div>
+        <div className="hero-art" aria-hidden="true">
+          <AudioLines size={46} strokeWidth={2.2} />
+        </div>
+      </section>
+
+      <div className="card record-card">
+        <div className="record-main">
+          <button
+            className={`record-button ${recording ? 'on' : ''}`}
+            disabled={busy || state.mode === 'uploading' || !!sttIssue}
+            onClick={() => (recording ? session.stop() : session.start())}
+            aria-label={recording ? 'Stop recording' : 'Start recording'}
+            aria-pressed={recording}
+            style={{ '--level': state.level } as CSSProperties}
+          >
+            {recording ? <Square size={30} fill="currentColor" /> : <Mic size={38} />}
+          </button>
+          <div className="record-status">
+            <strong>
+              {state.mode === 'starting' && 'Starting…'}
+              {state.mode === 'recording' && 'Listening'}
+              {state.mode === 'stopping' && 'Finishing up…'}
+              {state.mode === 'idle' && 'Tap to start'}
+              {state.mode === 'uploading' && 'Transcribing file…'}
+            </strong>
+            <span className="muted small">
+              {STT_PROVIDERS[settings.stt.provider].label}
+              {!llmIssue && ` · AI: ${LLM_PROVIDERS[settings.llm.provider].label}`}
+            </span>
+            {state.pending > 0 && (
+              <span className="pill pill-sky">
+                Transcribing {state.pending} chunk{state.pending > 1 ? 's' : ''}…
+              </span>
+            )}
+          </div>
+        </div>
+
+        <label className="language-row">
+          <span>Spoken language</span>
+          <select value={settings.stt.language} onChange={(e) => updateSettings({ stt: { ...settings.stt, language: e.target.value } })}>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!settings.stt.language && settings.stt.provider !== 'browser' && (
+          <p className="muted small">Auto-detect can guess wrong. Choosing your language gives much better text.</p>
+        )}
+        {recording && settings.stt.provider === 'gemini' && !settings.geminiBilling && (
+          <p className="muted small">Text appears every 2–5 minutes, so Gemini’s 20 free requests a day go further.</p>
+        )}
+        {recording && settings.voiceCommands && !llmIssue && (
+          <p className="muted small">Say “{settings.wakePhrase}, …” to give a command.</p>
+        )}
+
+        <Stats
+          items={[
+            { value: today.length, label: 'Today' },
+            { value: minutesToday, label: 'Minutes' },
+            { value: openTasks, label: 'Open tasks' },
+          ]}
+        />
+      </div>
+
       {sttIssue && (
         <Notice kind="warn">
           {sttIssue} <a href="#/settings">Open Settings</a>. Free option: a Groq or Gemini key takes about a minute to get, or choose browser speech recognition with no key at all.
         </Notice>
       )}
       {!sttIssue && llmIssue && <Notice>{llmIssue} Recording still works without one.</Notice>}
-
-      <div className="record-main">
-        <button
-          className={`record-button ${recording ? 'on' : ''}`}
-          disabled={busy || state.mode === 'uploading' || !!sttIssue}
-          onClick={() => (recording ? session.stop() : session.start())}
-          aria-label={recording ? 'Stop recording' : 'Start recording'}
-          aria-pressed={recording}
-          style={{ '--level': state.level } as CSSProperties}
-        >
-          <span aria-hidden="true">{recording ? '■' : '●'}</span>
-        </button>
-        <div className="record-status">
-          <strong>
-            {state.mode === 'starting' && 'Starting…'}
-            {state.mode === 'recording' && 'Listening'}
-            {state.mode === 'stopping' && 'Finishing up…'}
-            {state.mode === 'idle' && 'Tap to start recording'}
-            {state.mode === 'uploading' && 'Transcribing file…'}
-          </strong>
-          <span className="muted">
-            {STT_PROVIDERS[settings.stt.provider].label}
-            {settings.stt.model && ` · ${settings.stt.model}`}
-            {!llmIssue && ` · AI: ${LLM_PROVIDERS[settings.llm.provider].label}`}
-          </span>
-          {state.pending > 0 && <span className="muted">Transcribing {state.pending} chunk{state.pending > 1 ? 's' : ''}…</span>}
-          {recording && settings.stt.provider === 'gemini' && !settings.geminiBilling && (
-            <span className="muted">Text appears every 2–5 minutes, so Gemini’s 20 free requests a day go further.</span>
-          )}
-          {recording && settings.voiceCommands && !llmIssue && (
-            <span className="muted">Say “{settings.wakePhrase}, …” to give a command.</span>
-          )}
-        </div>
-      </div>
-
-      <label className="language-row">
-        <span>Spoken language</span>
-        <select value={settings.stt.language} onChange={(e) => updateSettings({ stt: { ...settings.stt, language: e.target.value } })}>
-          {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      {!settings.stt.language && settings.stt.provider !== 'browser' && (
-        <p className="muted small">Auto-detect can guess wrong. Choosing your language gives much better text.</p>
-      )}
       {settings.stt.provider === 'groq' && WHISPER_WEAK.has(settings.stt.language) && (
         <Notice>
           Groq Whisper is weak at {LANGUAGES.find((l) => l.code === settings.stt.language)?.label}. Google Gemini or Sarvam AI
@@ -113,8 +147,8 @@ export function RecordView() {
         <div className="card command">
           <div className="command-head">
             <span>🗣️ “{state.command.command}”</span>
-            <button className="link" onClick={() => session.dismissCommand()}>
-              Dismiss
+            <button className="icon-button" aria-label="Dismiss" onClick={() => session.dismissCommand()}>
+              <X size={18} />
             </button>
           </div>
           {!state.command.reply && !state.command.error && <p className="muted">Working on it…</p>}
@@ -138,7 +172,7 @@ export function RecordView() {
 
       {state.hints.length > 0 && (
         <div className="card hints">
-          <h3>Live hints</h3>
+          <h3 className="eyebrow">Live hints</h3>
           {state.hints.map((hint, i) => (
             <p key={i}>
               {HINT_ICONS[hint.kind] ?? '•'} {hint.text}
@@ -150,7 +184,7 @@ export function RecordView() {
       {(current || state.interim) && (
         <div className="card live">
           <div className="section-head">
-            <h3>Current conversation</h3>
+            <h3 className="eyebrow">Current conversation</h3>
             {current && (
               <button className="link" onClick={() => navigate(`c/${current.id}`)}>
                 Open
@@ -193,8 +227,8 @@ export function RecordView() {
             if (id) navigate(`c/${id}`);
           }}
         />
-        <button className="secondary" disabled={state.mode !== 'idle' || !!sttIssue} onClick={() => fileInput.current?.click()}>
-          Transcribe an audio file
+        <button className="peach" disabled={state.mode !== 'idle' || !!sttIssue} onClick={() => fileInput.current?.click()}>
+          <Upload size={18} /> Transcribe an audio file
         </button>
       </div>
 

@@ -1,3 +1,4 @@
+import { ArrowUpRight, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { Empty } from '../components';
 import { newId, put, remove, useList } from '../lib/db';
@@ -18,7 +19,7 @@ export function MemoriesView() {
         questions. You can add or delete them yourself.
       </p>
       <form
-        className="add-task"
+        className="card add-task single"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!text.trim()) return;
@@ -26,30 +27,35 @@ export function MemoriesView() {
           setText('');
         }}
       >
-        <input placeholder="Add something to remember…" value={text} onChange={(e) => setText(e.target.value)} />
+        <input placeholder="Add something to remember…" aria-label="New memory" value={text} onChange={(e) => setText(e.target.value)} />
         <button type="submit" disabled={!text.trim()}>
-          Save
+          <Plus size={18} /> Save
         </button>
       </form>
       {memories.length > 8 && <input type="search" placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />}
       {!memories.length && <Empty>No memories yet. They appear after conversations are summarized.</Empty>}
-      {visible.map((memory) => (
-        <div key={memory.id} className="row">
-          <span>
-            {memory.text}
-            <span className="muted small"> · {formatDateTime(memory.createdAt)}</span>
-            {memory.conversationId && (
-              <a className="link small" href={`#/c/${memory.conversationId}`} title="Open source conversation" aria-label="Open source conversation">
-                {' '}
-                ↗
-              </a>
-            )}
-          </span>
-          <button className="link small" title="Delete" aria-label={`Delete memory: ${memory.text}`} onClick={() => remove('memories', memory.id)}>
-            ✕
-          </button>
+      {visible.length > 0 && (
+        <div className="card list">
+          {visible.map((memory) => (
+            <div key={memory.id} className="row">
+              <span>
+                {memory.text}
+                <span className="row-meta">
+                  {formatDateTime(memory.createdAt)}
+                  {memory.conversationId && (
+                    <a className="cite" href={`#/c/${memory.conversationId}`} title="Open source conversation" aria-label="Open source conversation">
+                      <ArrowUpRight size={15} />
+                    </a>
+                  )}
+                </span>
+              </span>
+              <button className="icon-button" title="Delete" aria-label={`Delete memory: ${memory.text}`} onClick={() => remove('memories', memory.id)}>
+                <X size={18} />
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

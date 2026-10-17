@@ -30,6 +30,8 @@ export interface Settings {
   geminiBilling: boolean;
   /** The welcome guide was completed or skipped. */
   onboarded: boolean;
+  /** Colour theme; "system" follows the device. */
+  theme: 'light' | 'dark' | 'system';
 }
 
 const STORAGE_KEY = 'personal-ai.settings';
@@ -49,6 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reminders: false,
   geminiBilling: false,
   onboarded: false,
+  theme: 'light',
 };
 
 /** How recorded audio is split into requests for the chosen transcription provider. */

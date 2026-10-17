@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import { Component, Fragment, useEffect, useState, type ReactNode } from 'react';
 import type { LimitKind } from './lib/http';
 import { alternativeProviders } from './lib/llm';
@@ -78,9 +79,59 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
 
+/** Big page title, with an optional back link and buttons on the right. */
+export function PageHeader({ title, back, backOnlyOnPhones, children }: { title: string; back?: string; backOnlyOnPhones?: boolean; children?: ReactNode }) {
+  return (
+    <header className="page-head">
+      {back && (
+        <a href={`#/${back}`} className={`back ${backOnlyOnPhones ? 'phone-only' : ''}`} aria-label="Back">
+          <ArrowLeft size={22} />
+        </a>
+      )}
+      <div className="page-head-row">
+        <h1>{title}</h1>
+        {children}
+      </div>
+    </header>
+  );
+}
+
+/** A row of big numbers with labels, split by thin dividers. */
+export function Stats({ items }: { items: { value: ReactNode; label: string }[] }) {
+  return (
+    <div className="stats">
+      {items.map((item) => (
+        <div key={item.label} className="stat">
+          <b>{item.value}</b>
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const TONES = ['mint', 'peach', 'sky', 'rose', 'lavender'] as const;
+export type Tone = (typeof TONES)[number];
+
+/** A stable pastel colour for a word, so the same category always gets the same colour. */
+export function toneFor(text = ''): Tone {
+  let hash = 0;
+  for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return TONES[Math.abs(hash) % TONES.length];
+}
+
+/** Rounded pastel square holding an emoji or icon, like a profile picture. */
+export function Tile({ children, tone = 'mint', size = 'md' }: { children: ReactNode; tone?: Tone; size?: 'sm' | 'md' | 'lg' }) {
+  return (
+    <span className={`tile tile-${tone} tile-${size}`} aria-hidden="true">
+      {children}
+    </span>
+  );
+}
+
 export function Section({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
   return (
-    <section className="section">
+    <section className="section card">
       <div className="section-head">
         <h3>{title}</h3>
         {actions}
