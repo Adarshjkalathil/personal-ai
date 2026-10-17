@@ -5,6 +5,9 @@
 // Chunk length is set per provider (ChunkPolicy): request-limited free tiers
 // like Gemini get long chunks, while Sarvam's API needs them under 30 s.
 
+import type { PluginListenerHandle } from '@capacitor/core';
+import { decodePcm16, NativeRecorder } from './native';
+
 export const SAMPLE_RATE = 16_000;
 
 const FRAME = 480; // 30 ms at 16 kHz
@@ -202,7 +205,14 @@ async function shareDeviceAudio(): Promise<MediaStream> {
   return display;
 }
 
-export class MicCapture {
+/** Records audio and feeds it to a Chunker: MicCapture in a browser, NativeCapture in the Android app. */
+export interface Capture {
+  readonly chunker: Chunker;
+  start(options?: CaptureOptions): Promise<void>;
+  stop(): Promise<void>;
+}
+
+export class MicCapture implements Capture {
   private stream?: MediaStream;
   private display?: MediaStream;
   private context?: AudioContext;
@@ -249,6 +259,44 @@ export class MicCapture {
     this.display?.getTracks().forEach((track) => track.stop());
     await this.context?.close();
     this.chunker.flush();
+  }
+}
+
+/**
+ * The Android app's microphone. Recording runs in a native foreground service, so it
+ * carries on with the screen off; the service already delivers 16 kHz mono audio.
+ */
+export class NativeCapture implements Capture {
+  private handles: PluginListenerHandle[] = [];
+  readonly chunker: Chunker;
+
+  /** `onEnded` fires when recording stops from the notification, or on an error. */
+  constructor(onChunk: (chunk: SpeechChunk) => void, policy = DEFAULT_CHUNK_POLICY, private onEnded?: (error?: string) => void) {
+    this.chunker = new Chunker(onChunk, Date.now(), policy);
+  }
+
+  async start(): Promise<void> {
+    this.handles.push(
+      await NativeRecorder.addListener('audio', ({ data }) => this.chunker.push(decodePcm16(data))),
+      await NativeRecorder.addListener('ended', ({ error }) => this.onEnded?.(error)),
+    );
+    try {
+      await NativeRecorder.start();
+    } catch (error) {
+      await this.removeListeners();
+      throw error;
+    }
+  }
+
+  async stop(): Promise<void> {
+    await this.removeListeners();
+    await NativeRecorder.stop();
+    this.chunker.flush();
+  }
+
+  private async removeListeners() {
+    await Promise.all(this.handles.map((handle) => handle.remove()));
+    this.handles = [];
   }
 }
 

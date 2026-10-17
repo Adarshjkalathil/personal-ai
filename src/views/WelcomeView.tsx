@@ -4,7 +4,8 @@ import { Notice, Tile, navigate } from '../components';
 import { ApiError } from '../lib/http';
 import { listModels } from '../lib/llm';
 import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
-import { updateSettings, useSettings } from '../lib/settings';
+import { isNativeApp } from '../lib/native';
+import { hasBrowserSpeech, updateSettings, useSettings } from '../lib/settings';
 import { persistStorage } from '../lib/storage';
 
 type Step = 'intro' | 'key' | 'ready';
@@ -28,7 +29,6 @@ const KEY_GUIDE: Record<KeyChoice, { label: string; url: string; site: string; p
   },
 };
 
-const hasBrowserSpeech = () => 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
 
 /** First-run guide: what the app does, a free key (checked as it's pasted), language and microphone. */
 export function WelcomeView() {
@@ -76,7 +76,7 @@ export function WelcomeView() {
                 <Tile tone="peach" size="sm">
                   <Lock size={20} />
                 </Tile>
-                Everything stays in this browser. No account, no company server.
+                Everything stays {isNativeApp ? 'on this phone' : 'in this browser'}. No account, no company server.
               </li>
             </ul>
             <button className="big" onClick={() => setStep('key')}>
@@ -93,7 +93,7 @@ export function WelcomeView() {
                 Try it first without a key
               </button>
             ) : (
-              <p className="muted small">Trying without a key needs Chrome or Edge. Setup with a free key works in any browser.</p>
+              !isNativeApp && <p className="muted small">Trying without a key needs Chrome or Edge. Setup with a free key works in any browser.</p>
             )}
           </div>
         </>

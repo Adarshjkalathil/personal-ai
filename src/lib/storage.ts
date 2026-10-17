@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { download } from './actions';
 import { exportAll } from './db';
+import { isNativeApp, isNewerVersion, LATEST_RELEASE_API } from './native';
 import { localDay } from './time';
 
 // ---- Persistent storage ----
@@ -68,7 +69,7 @@ export function lastBackupAt(): number {
 /** Downloads a backup of all conversations, tasks and memories. */
 export async function downloadBackup(): Promise<void> {
   const backup = await exportAll();
-  download(`personal-ai-backup-${localDay()}.json`, new Blob([JSON.stringify(backup, null, 1)], { type: 'application/json' }));
+  await download(`personal-ai-backup-${localDay()}.json`, new Blob([JSON.stringify(backup, null, 1)], { type: 'application/json' }));
   writeNumber(LAST_BACKUP_KEY, Date.now());
 }
 
@@ -104,16 +105,26 @@ export function daysAgo(ms: number, now = Date.now()): string {
 
 const UPDATE_CHECK_MS = 30 * 60_000;
 
-/** True once a newer version of the app has been deployed than the one running. */
+/** Whether the deployed site, or for the Android app the latest GitHub release, is newer than this build. */
+async function newerVersionExists(): Promise<boolean> {
+  if (isNativeApp) {
+    const response = await fetch(LATEST_RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } });
+    const { tag_name: tag } = (await response.json()) as { tag_name?: string };
+    return !!tag && isNewerVersion(tag, __APP_VERSION__);
+  }
+  const response = await fetch('./version.json', { cache: 'no-store' });
+  const { build } = (await response.json()) as { build?: string };
+  return !!build && build !== __BUILD__;
+}
+
+/** True once a newer version of the app has been released than the one running. */
 export function useUpdateAvailable(): boolean {
   const [available, setAvailable] = useState(false);
   useEffect(() => {
     if (!import.meta.env.PROD || available) return;
     const check = async () => {
       try {
-        const response = await fetch('./version.json', { cache: 'no-store' });
-        const { build } = (await response.json()) as { build?: string };
-        if (build && build !== __BUILD__) setAvailable(true);
+        if (await newerVersionExists()) setAvailable(true);
       } catch {
         // offline; try again later
       }

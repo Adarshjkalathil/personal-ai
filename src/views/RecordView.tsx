@@ -3,6 +3,7 @@ import { useRef, type CSSProperties } from 'react';
 import { BackupReminder, BusyChoice, Notice, Stats, navigate } from '../components';
 import { supportsDeviceAudio } from '../lib/audio';
 import { useList, speakerName } from '../lib/db';
+import { APK_URL, isNativeApp, onAndroidBrowser } from '../lib/native';
 import { LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS } from '../lib/providers';
 import { session, useSession } from '../lib/session';
 import { llmProblem, sttProblem, updateSettings, useSettings } from '../lib/settings';
@@ -112,7 +113,9 @@ export function RecordView() {
           </label>
         ) : (
           !supportsDeviceAudio() && (
-            <p className="muted small">Recording a call? Put it on speaker. Phones don’t let web apps record other apps’ sound.</p>
+            <p className="muted small">
+              Recording a call? Put it on speaker. {isNativeApp ? 'Android doesn’t let apps record other apps’ call audio.' : 'Phones don’t let web apps record other apps’ sound.'}
+            </p>
           )
         )}
         {canShareAudio && settings.deviceAudio && state.mode === 'idle' && (
@@ -127,6 +130,14 @@ export function RecordView() {
         )}
         {recording && settings.stt.provider === 'gemini' && !settings.geminiBilling && (
           <p className="muted small">Text appears every 2–5 minutes, so Gemini’s 20 free requests a day go further.</p>
+        )}
+        {recording && isNativeApp && (
+          <p className="muted small">You can lock the phone or switch apps; recording carries on. Stop it here or from the notification.</p>
+        )}
+        {onAndroidBrowser && !recording && (
+          <p className="muted small">
+            <a href={APK_URL}>Get the Android app</a>: it keeps recording with the screen off.
+          </p>
         )}
         {recording && settings.voiceCommands && !llmIssue && (
           <p className="muted small">Say “{settings.wakePhrase}, …” to give a command.</p>
@@ -143,7 +154,7 @@ export function RecordView() {
 
       {sttIssue && (
         <Notice kind="warn">
-          {sttIssue} <a href="#/settings">Open Settings</a>. Free option: a Groq or Gemini key takes about a minute to get, or choose browser speech recognition with no key at all.
+          {sttIssue} <a href="#/settings">Open Settings</a>. Free option: a Groq or Gemini key takes about a minute to get{isNativeApp ? '.' : ', or choose browser speech recognition with no key at all.'}
         </Notice>
       )}
       {!sttIssue && llmIssue && <Notice>{llmIssue} Recording still works without one.</Notice>}

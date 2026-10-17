@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Empty, Notice, Section } from '../components';
 import { download, googleCalendarUrl, tasksToIcs } from '../lib/actions';
 import { newId, patch, put, remove, useList, type Task } from '../lib/db';
+import { isNativeApp } from '../lib/native';
 import { enableReminders } from '../lib/reminders';
 import { updateSettings, useSettings } from '../lib/settings';
 import { formatDateTime, parseLocalDate, toDateTimeInput } from '../lib/time';
@@ -86,7 +87,13 @@ export function TasksView() {
             onClick={async () => {
               const granted = await enableReminders();
               if (granted) updateSettings({ reminders: true });
-              setNotice(granted ? 'Reminders are on while this app is open.' : 'Notifications were blocked by the browser.');
+              setNotice(
+                granted
+                  ? isNativeApp
+                    ? 'Reminders are on, even when the app is closed.'
+                    : 'Reminders are on while this app is open.'
+                  : 'Notifications were blocked. Allow them in your settings.',
+              );
             }}
           >
             <Bell size={16} /> Turn on reminders

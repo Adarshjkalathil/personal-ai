@@ -6,9 +6,10 @@ import { speak } from './actions';
 import { runAgent, type AgentReply } from './agent';
 import { analyzeConversation } from './analyze';
 import { liveHints, type LiveHint } from './assist';
-import { chunkFile, MicCapture, supportsDeviceAudio, type SpeechChunk } from './audio';
+import { chunkFile, MicCapture, NativeCapture, supportsDeviceAudio, type Capture, type SpeechChunk } from './audio';
 import { deleteAudio, get, list, listAudio, newId, patch, put, remove, saveAudio, type Conversation, type Segment } from './db';
 import { ApiError, limitKind, rateLimitListeners, type LimitKind } from './http';
+import { isNativeApp } from './native';
 import { browserSpeechLanguage, type LlmProviderId, type SttProviderId } from './providers';
 import { chunkPolicy, getSettings, llmProblem, sttProblem } from './settings';
 import { persistStorage } from './storage';
@@ -73,7 +74,7 @@ const MAX_HELD_MS = 15 * 60_000;
 class Session {
   state: SessionState = { mode: 'idle', level: 0, pending: 0, interim: '', held: { count: 0, ms: 0 }, hints: [] };
   private listeners = new Set<() => void>();
-  private mic?: MicCapture;
+  private mic?: Capture;
   private recognition?: Recognition;
   private queue: Promise<void> = Promise.resolve();
   private lastSpeechAt = 0;
@@ -118,7 +119,10 @@ class Session {
     try {
       if (settings.stt.provider === 'browser') this.startBrowserSpeech();
       else {
-        this.mic = new MicCapture((chunk) => this.enqueue(chunk, 'mic'), chunkPolicy(settings));
+        const onChunk = (chunk: SpeechChunk) => this.enqueue(chunk, 'mic');
+        this.mic = isNativeApp
+          ? new NativeCapture(onChunk, chunkPolicy(settings), (error) => this.onNativeEnded(error))
+          : new MicCapture(onChunk, chunkPolicy(settings));
         const deviceAudio = settings.deviceAudio && supportsDeviceAudio();
         await this.mic.start({
           deviceAudio,
@@ -128,7 +132,8 @@ class Session {
         this.timers.push(window.setInterval(() => this.set({ level: this.mic?.chunker.level ?? 0 }), 100));
       }
       this.timers.push(window.setInterval(() => this.checkConversationGap(), 10_000));
-      if (settings.keepScreenOn) this.wakeLock = await navigator.wakeLock?.request('screen').catch(() => undefined);
+      // The Android app records in a background service, so the screen may turn off.
+      if (settings.keepScreenOn && !isNativeApp) this.wakeLock = await navigator.wakeLock?.request('screen').catch(() => undefined);
       this.set({ mode: 'recording' });
     } catch (error) {
       await this.cleanup();
@@ -143,6 +148,13 @@ class Session {
     await this.queue;
     if (this.state.conversationId) await this.finish(this.state.conversationId);
     this.set({ mode: 'idle', level: 0, interim: '', deviceAudio: undefined });
+  }
+
+  /** The Android recording stopped by itself: from the notification's Stop button, or an error. */
+  private async onNativeEnded(error?: string) {
+    if (this.state.mode !== 'recording') return;
+    await this.stop();
+    if (error) this.set({ error });
   }
 
   private async cleanup() {
