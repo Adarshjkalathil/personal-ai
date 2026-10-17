@@ -1,18 +1,24 @@
 {
   "name": "personal-ai",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Browser-based AI memory assistant: record conversations, transcribe, summarize, and ask questions using free API keys.",
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:android": "npm run build && cap sync android",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/share": "^8.0.3",
     "@fontsource-variable/nunito": "^5.3.0",
     "idb": "^8.0.4",
     "lucide-react": "^1.59.0",
@@ -20,6 +26,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",

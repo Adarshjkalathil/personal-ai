@@ -7,11 +7,14 @@ summarizes each conversation, makes a to-do list from the promises people made, 
 like *“What did Ravi say about the budget?”*
 
 - ✅ **Free.** No subscription, nothing to buy.
-- ✅ **Nothing to install.** It runs in your web browser, on a phone or a computer.
+- ✅ **Nothing to install.** It runs in your web browser, on a phone or a computer. On Android there's also an app
+  that keeps recording with the screen off.
 - ✅ **Private.** Your recordings stay on your own device.
 - ✅ **Speaks your language.** English, Hindi, Tamil, Telugu, Bengali, Marathi and more, including mixed Hindi-English.
 
 ## 👉 [Open Personal AI](https://adarshjkalathil.github.io/personal-ai/)
+
+📱 **Android phone?** [Download the app (APK)](https://github.com/Adarshjkalathil/personal-ai/releases/latest/download/personal-ai.apk). See [the Android app](#the-android-app).
 
 ---
 
@@ -79,7 +82,41 @@ Later you can change keys in **⚙️ Settings** (under **More** on a phone, at 
 - **Tell the other people you're recording.** In many places it's required by law.
 
 **Install it like an app:** on your phone, open the menu in Chrome and tap **Add to Home screen**. On iPhone, use the
-Share button in Safari, then **Add to Home Screen**.
+Share button in Safari, then **Add to Home Screen**. On Android, the [Android app](#the-android-app) works better: it
+keeps recording with the screen off.
+
+---
+
+## The Android app
+
+The same app, plus things a web page can't do on a phone:
+
+- **Records with the screen off** or while you use other apps. A notification shows while it's recording, with a
+  **Stop** button.
+- **Reminders arrive even when the app is closed.**
+- **Exports and backups open Android's share menu**, so you can save them to Files or Drive, or add a calendar file
+  to your calendar.
+
+**Install it:**
+
+1. On your phone, download **[personal-ai.apk](https://github.com/Adarshjkalathil/personal-ai/releases/latest/download/personal-ai.apk)**.
+2. Open the downloaded file. If Android asks, allow your browser to **install unknown apps**, then tap **Install**.
+   (It isn't on the Play Store, so Android shows this warning for it.)
+3. Open **Personal AI**, set it up with your key, and allow the **microphone** and **notifications** when asked.
+
+**Updates:** when a new version is out, the app shows **Download update**. Install it over the old one: your
+conversations, tasks and keys are kept.
+
+**Good to know:**
+
+- The app and the website keep separate data. To move it, use **Settings → Your data → Export backup** in one and
+  **Import backup** in the other. Keys aren't included, so paste your key again.
+- Swiping the app away from your recent apps stops recording. Pressing Home or locking the phone doesn't.
+- Some phones (Xiaomi, Oppo, Vivo, Realme, OnePlus, some Samsung) stop background apps to save battery. If recording
+  stops by itself, open **Settings → Apps → Personal AI → Battery** and choose **Unrestricted** (or **No
+  restrictions**).
+- Browser speech recognition (the no-key option) isn't available in the app. Use a free Groq key.
+- Android doesn't let apps record the other side of a phone or WhatsApp call. Put the call on speaker.
 
 ---
 
@@ -123,8 +160,9 @@ and Gemini). When one provider hits its free limit, the app asks whether to use 
 | “Free-tier limit” or “daily limit is used up” | Free plans allow only so many requests per minute and per day. Your audio isn't lost: it's saved, and a **Retry** button appears on the Record tab. Wait a minute, or for a daily limit until it resets (Gemini resets at midnight US Pacific time, about 12:30 PM in India, 1:30 PM in winter). Or add a second free key (for example Groq) in Settings, switch to it, and tap **Retry**. |
 | Gemini text appears slowly | That's on purpose. Gemini's free plan allows only about 20 requests a day, so the app sends 2–5 minutes of speech at a time. Groq is faster. |
 | The text is gibberish or in the wrong language | Choose your **Spoken language** on the Record tab instead of Auto-detect. Groq's Whisper is weak at Malayalam, Tamil, Telugu, Kannada and some other Indian languages. For those, switch transcription to **Google Gemini** or **Sarvam AI** in Settings. |
-| Recording stops on my phone | Keep the app open on screen. Phones pause web pages in the background. If the app closes mid-recording, the audio that wasn't written down yet is kept: open the app again and tap **Retry** on the Record tab. |
-| “A new version is ready” | Tap **Reload** to get the latest version. Your data isn't affected. |
+| Recording stops on my phone | In a browser, keep the app open on screen: phones pause web pages in the background. The [Android app](#the-android-app) records with the screen off. If the app closes mid-recording, the audio that wasn't written down yet is kept: open the app again and tap **Retry** on the Record tab. |
+| “App not installed” on Android | An older copy signed differently is installed (for example a test build). Export a backup, uninstall it, install the new APK, and import the backup. |
+| “A new version is ready” | Tap **Reload** (in the Android app: **Download update**, then install it). Your data isn't affected. |
 | Nothing is summarized | Summaries need a key for the AI too. A Groq key covers both. |
 | I want my data on another device | **Settings → Your data → Export backup**, then **Import backup** on the other device. |
 
@@ -132,11 +170,11 @@ and Gemini). When one provider hits its free limit, the app asks whether to use 
 
 ## Privacy, in plain words
 
-- Your recordings, notes and to-dos are saved **only in your browser** on this device. There's no account and no
+- Your recordings, notes and to-dos are saved **only in your browser** (or the Android app) on this device. There's no account and no
   company server.
 - Only the parts where someone is speaking are sent to the service you picked (for example Groq) to be written down.
   Silence is never sent.
-- Your keys are saved only in your browser and sent only to their own service.
+- Your keys are saved only on your device and sent only to their own service.
 - Free plans of some services (Google, Mistral) may use what you send to improve their AI. For complete privacy, use
   Ollama on your own computer.
 - **Always tell people when you're recording.** In many places it's required by law.
@@ -166,6 +204,25 @@ npm run build    # static site in dist/
 
 The microphone only works on `https://` or `localhost`.
 
+### Android app
+
+The app in `android/` is the same web build inside a [Capacitor](https://capacitorjs.com) WebView. A small native
+plugin (`android/app/src/main/java/.../NativeRecorderPlugin.java` and `RecorderService.java`) records the microphone in
+a foreground service at 16 kHz and streams it to the web app's voice detector, so recording continues in the
+background. It also provides text-to-speech. Reminders use `@capacitor/local-notifications`, and exports use
+`@capacitor/filesystem` with `@capacitor/share`.
+
+```bash
+npm run build:android                 # build the web app and copy it into android/
+cd android && ./gradlew assembleDebug  # needs JDK 21 and the Android SDK (or open android/ in Android Studio)
+```
+
+`.github/workflows/android.yml` builds the APK on every push and pull request (download it from the run's
+artifacts). On `main`, if `package.json` has a version that hasn't been released, it publishes a GitHub release
+`v<version>` with `personal-ai.apk`. **To release an update, bump `version` in `package.json`.** Release builds are
+signed with the key in the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS` secrets.
+Every release must use that same key, or phones won't install it as an update.
+
 ### Deploy
 
 Every push to `main` runs the tests and deploys to GitHub Pages (**Settings → Pages → Source: GitHub Actions**).
@@ -193,6 +250,7 @@ mic ─► AudioWorklet ─► 16 kHz resample ─► voice detector ─► spee
 | `src/lib/session.ts` | Recording session, voice commands, live hints |
 | `src/lib/db.ts` | IndexedDB storage, backup/restore |
 | `src/lib/storage.ts` | Persistent storage, backup reminders, update check |
+| `src/lib/native.ts` | Android app bridge (native recorder, release check) |
 | `src/views/WelcomeView.tsx` | First-run guide |
 
 The production build sets a strict Content-Security-Policy and loads no third-party scripts. The conversation fields
@@ -200,15 +258,16 @@ and the “discard trivial snippets” rule are modelled on [Omi](https://github
 
 ### Known limitations
 
-- Browsers pause background tabs, so recording needs the app on screen (it keeps the screen awake).
+- Browsers pause background tabs, so in a browser recording needs the app on screen (it keeps the screen awake). The
+  Android app doesn't have this limit.
 - Gemini labels speakers chunk by chunk, so labels can occasionally swap.
-- Reminder notifications fire only while the app is open. The .ics export covers the rest.
+- In a browser, reminder notifications fire only while the app is open. The .ics export covers the rest.
 
 ### Roadmap
 
 - Bluetooth pendant support (Web Bluetooth, Omi-compatible firmware on a ~$25 XIAO nRF52840 Sense)
 - Fully on-device transcription in the browser (Whisper via WebGPU)
-- Android wrapper for background recording
+- ✅ Android app with background recording
 
 </details>
 

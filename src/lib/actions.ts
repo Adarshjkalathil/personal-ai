@@ -2,6 +2,7 @@
 // user's own apps, plus downloadable .ics calendar files.
 
 import type { CalendarEvent, Task } from './db';
+import { isNativeApp, NativeRecorder } from './native';
 import { parseLocalDate, timeZone } from './time';
 
 function compactLocal(date: Date): string {
@@ -103,15 +104,38 @@ export function tasksToIcs(tasks: Task[]): Blob {
   );
 }
 
-export function download(filename: string, blob: Blob): void {
+/** Saves a file: a download in a browser, Android's share sheet in the app (save to Files, Drive, a calendar…). */
+export async function download(filename: string, blob: Blob): Promise<void> {
+  if (isNativeApp) return shareFile(filename, blob);
   const url = URL.createObjectURL(blob);
   const link = Object.assign(document.createElement('a'), { href: url, download: filename });
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function shareFile(filename: string, blob: Blob): Promise<void> {
+  const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
+  const data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+  const { uri } = await Filesystem.writeFile({ path: filename.replace(/[\\/:*?"<>|]/g, '-'), data, directory: Directory.Cache });
+  try {
+    await Share.share({ title: filename, files: [uri] });
+  } catch (error) {
+    if (!/cancel/i.test((error as Error).message)) throw error;
+  }
+}
+
 export function speak(text: string): void {
+  const plain = text.replace(/[*_#`]|\[c:[^\]]+\]/g, '');
+  if (isNativeApp) {
+    void NativeRecorder.speak({ text: plain });
+    return;
+  }
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
-  speechSynthesis.speak(new SpeechSynthesisUtterance(text.replace(/[*_#`]|\[c:[^\]]+\]/g, '')));
+  speechSynthesis.speak(new SpeechSynthesisUtterance(plain));
 }

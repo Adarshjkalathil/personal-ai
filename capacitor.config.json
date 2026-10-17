@@ -1,0 +1,14 @@
+{
+  "appId": "io.github.adarshjkalathil.personalai",
+  "appName": "Personal AI",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#eef2f7"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#43c39b"
+    }
+  }
+}

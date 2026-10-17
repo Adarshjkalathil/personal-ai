@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { ChunkPolicy } from './audio';
+import { isNativeApp } from './native';
 import {
   LLM_PROVIDERS,
   STT_PROVIDERS,
@@ -111,11 +112,19 @@ export function llmKey(settings: Settings): string {
   return settings.keys[LLM_PROVIDERS[settings.llm.provider].key];
 }
 
+/** Whether keyless browser speech recognition works here (not in the Android app's WebView). */
+export function hasBrowserSpeech(): boolean {
+  return !isNativeApp && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+}
+
 /** Human-readable reason the current setup can't run, or null if it's ready. */
 export function sttProblem(settings: Settings): string | null {
   const provider = STT_PROVIDERS[settings.stt.provider];
   if (provider.key && !settings.keys[provider.key]) return `Add a ${provider.label} key in Settings to transcribe.`;
-  if (settings.stt.provider === 'browser' && !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+  if (settings.stt.provider === 'browser' && isNativeApp) {
+    return 'Browser speech recognition isn’t available in the Android app. Pick Groq or another transcription provider in Settings.';
+  }
+  if (settings.stt.provider === 'browser' && !hasBrowserSpeech()) {
     return 'This browser has no built-in speech recognition. Use Chrome or Edge, or pick a different transcription provider.';
   }
   return null;

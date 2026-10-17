@@ -4,6 +4,7 @@ import { clearAll, importAll, type Backup } from '../lib/db';
 import { listModels } from '../lib/llm';
 import { KEYS, LANGUAGES, LLM_PROVIDERS, STT_PROVIDERS, type KeyId, type LlmProviderId, type SttProviderId } from '../lib/providers';
 import { geminiUsage, resetTime, usageListeners } from '../lib/quota';
+import { isNativeApp } from '../lib/native';
 import { enableReminders } from '../lib/reminders';
 import { updateSettings, useSettings, type Settings } from '../lib/settings';
 import { daysAgo, downloadBackup, lastBackupAt, persistStorage, storageStatus, useBackupState, type StorageStatus } from '../lib/storage';
@@ -145,7 +146,8 @@ function StorageInfo() {
   useEffect(() => {
     void storageStatus().then(setStatus);
   }, [asked]);
-  if (!status?.supported) return null;
+  // App storage on Android isn't cleared to free up space, unlike a browser's.
+  if (isNativeApp || !status?.supported) return null;
   const used = status.usage ? ` (${(status.usage / 1_048_576).toFixed(1)} MB used)` : '';
   return status.persisted ? (
     <p className="small">✓ This browser has agreed to keep your data{used}.</p>
@@ -200,7 +202,7 @@ export function SettingsView() {
       <Notice>
         <b>Everything here is free to start.</b> The quickest setup is a <b>Groq</b> key (transcription and AI), or a <b>Gemini</b>{' '}
         key if you want speaker labels and better Hindi. Add more than one key and, when one provider hits its free limit, the app
-        offers to use another one. Keys are stored only in this browser and sent only to the provider they belong to.
+        offers to use another one. Keys are stored only {isNativeApp ? 'in this app' : 'in this browser'} and sent only to the provider they belong to.
       </Notice>
 
       <Section title="API keys">
@@ -225,7 +227,7 @@ export function SettingsView() {
               updateSettings({ stt: { ...settings.stt, provider, model: STT_PROVIDERS[provider].defaultModel } });
             }}
           >
-            {(Object.keys(STT_PROVIDERS) as SttProviderId[]).map((id) => (
+            {(Object.keys(STT_PROVIDERS) as SttProviderId[]).filter((id) => !isNativeApp || id !== 'browser' || settings.stt.provider === id).map((id) => (
               <option key={id} value={id}>
                 {STT_PROVIDERS[id].label}
               </option>
@@ -319,7 +321,9 @@ export function SettingsView() {
           />
         </label>
         <Toggle label="Summarize conversations automatically" checked={settings.autoAnalyze} onChange={(v) => updateSettings({ autoAnalyze: v })} />
-        <Toggle label="Keep the screen awake while recording" checked={settings.keepScreenOn} onChange={(v) => updateSettings({ keepScreenOn: v })} />
+        {!isNativeApp && (
+          <Toggle label="Keep the screen awake while recording" checked={settings.keepScreenOn} onChange={(v) => updateSettings({ keepScreenOn: v })} />
+        )}
         <Toggle label="Voice commands while recording" checked={settings.voiceCommands} onChange={(v) => updateSettings({ voiceCommands: v })} />
         {settings.voiceCommands && (
           <label>
@@ -359,8 +363,10 @@ export function SettingsView() {
 
       <Section title="Your data">
         <p className="muted small">
-          Conversations, tasks and memories are stored only in this browser. Clearing site data deletes them, so download a backup
-          now and then. Backups don’t include API keys. Last backup: {daysAgo(lastBackupAt())}.
+          {isNativeApp
+            ? 'Conversations, tasks and memories are stored only in this app. Uninstalling it or clearing its storage deletes them, so export a backup now and then.'
+            : 'Conversations, tasks and memories are stored only in this browser. Clearing site data deletes them, so download a backup now and then.'}{' '}
+          Backups don’t include API keys. Last backup: {daysAgo(lastBackupAt())}.
         </p>
         <StorageInfo />
         <div className="actions">

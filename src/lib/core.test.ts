@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS, chunkPolicy, type Settings } from './settings';
 import { findByRef, searchConversations, tokenize } from './search';
 import { matchWakePhrase } from './session';
 import { GEMINI_FREE, geminiQuota, geminiUsage, nextPacificMidnight, noteSent, paceDelay, pacificDay, resetPacing } from './quota';
+import { decodePcm16, isNewerVersion } from './native';
 import { isExpectedLanguage, keepConfidentSegments, parseSpeakerLines } from './stt';
 import { backupDue, daysAgo, snoozeBackupReminder } from './storage';
 
@@ -399,5 +400,20 @@ describe('backup reminder', () => {
     expect(daysAgo(now - 3_600_000, now)).toBe('today');
     expect(daysAgo(now - 86_400_000, now)).toBe('yesterday');
     expect(daysAgo(now - 12 * 86_400_000, now)).toBe('12 days ago');
+  });
+});
+
+describe('android app', () => {
+  it('decodes the native recorder’s PCM16 batches', () => {
+    const pcm = new Int16Array([0, 16384, -32768, 32767]);
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm.buffer)));
+    expect(Array.from(decodePcm16(base64))).toEqual([0, 0.5, -1, 32767 / 32768]);
+  });
+
+  it('compares release versions', () => {
+    expect(isNewerVersion('v0.10.0', '0.9.3')).toBe(true);
+    expect(isNewerVersion('0.3.1', '0.3.0')).toBe(true);
+    expect(isNewerVersion('v0.3.0', '0.3.0')).toBe(false);
+    expect(isNewerVersion('0.2.9', '0.3.0')).toBe(false);
   });
 });

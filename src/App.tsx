@@ -4,6 +4,7 @@ import { ErrorBoundary, PageHeader, Tile, useRoute, type Tone } from './componen
 import { startReminderLoop } from './lib/reminders';
 import { useSession } from './lib/session';
 import { useSettings, type Settings as AppSettings } from './lib/settings';
+import { APK_URL, isNativeApp } from './lib/native';
 import { useUpdateAvailable } from './lib/storage';
 import { AskView } from './views/AskView';
 import { ConversationView } from './views/ConversationView';
@@ -59,10 +60,19 @@ function UpdateBanner({ recording }: { recording: boolean }) {
   if (!available) return null;
   return (
     <div className="update-banner" role="status">
-      <span>A new version of Personal AI is ready.{recording && ' Reload after you stop recording.'}</span>
-      <button className="small" disabled={recording} onClick={() => location.reload()}>
-        Reload
-      </button>
+      <span>A new version of Personal AI is ready.{recording && (isNativeApp ? ' Update after you stop recording.' : ' Reload after you stop recording.')}</span>
+      {isNativeApp ? (
+        // Opens in the phone's browser, which downloads the APK; installing it keeps all data.
+        !recording && (
+          <a className="button small" href={APK_URL} target="_blank" rel="noreferrer">
+            Download update
+          </a>
+        )
+      ) : (
+        <button className="small" disabled={recording} onClick={() => location.reload()}>
+          Reload
+        </button>
+      )}
     </div>
   );
 }
